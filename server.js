@@ -33,7 +33,7 @@ try { XLSX = require('xlsx'); } catch (e) { XLSX = null; }
 const app = express();
 app.use(express.json({ limit: '8mb' })); // large limit: le corps peut contenir un fichier Excel en base64
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 const HUBSPOT_TOKEN = process.env.HUBSPOT_TOKEN || '';
 const HS_BASE = 'https://api.hubapi.com';
 
