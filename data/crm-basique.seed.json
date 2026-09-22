@@ -1,0 +1,17 @@
+{
+  "clientLabel": "Menuiserie Delvaux (exemple)",
+  "contacts": [
+    { "id": "c1", "nom": "Sophie Marchal", "societe": "Menuiserie Delvaux", "email": "sophie.marchal@example.com", "telephone": "0470 12 34 56", "statut": "client", "derniereRelance": "2026-08-20" },
+    { "id": "c2", "nom": "Julien Petit", "societe": "Cabinet Petit & Fils", "email": "julien.petit@example.com", "telephone": "0475 22 11 09", "statut": "qualifie", "derniereRelance": "2026-08-02" },
+    { "id": "c3", "nom": "Fatima Zeroual", "societe": "Immo Zeroual", "email": "f.zeroual@example.com", "telephone": "0489 33 44 55", "statut": "lead", "derniereRelance": null },
+    { "id": "c4", "nom": "Thomas Willems", "societe": "Willems Construction", "email": "t.willems@example.com", "telephone": "0491 66 77 88", "statut": "qualifie", "derniereRelance": "2026-07-15" },
+    { "id": "c5", "nom": "Amélie Dupont", "societe": "Dupont Rénovation", "email": "amelie.dupont@example.com", "telephone": "0498 09 87 65", "statut": "lead", "derniereRelance": null }
+  ],
+  "opportunities": [
+    { "id": "o1", "contactId": "c1", "titre": "Remplacement châssis - maison témoin", "montant": 8200, "etape": "gagne", "dateMaj": "2026-06-10" },
+    { "id": "o2", "contactId": "c2", "titre": "Aménagement bureaux", "montant": 4200, "etape": "proposition", "dateMaj": "2026-09-01" },
+    { "id": "o3", "contactId": "c3", "titre": "Devis véranda", "montant": 12500, "etape": "nouveau", "dateMaj": "2026-09-15" },
+    { "id": "o4", "contactId": "c4", "titre": "Extension atelier", "montant": 21000, "etape": "qualifie", "dateMaj": "2026-05-02" },
+    { "id": "o5", "contactId": "c5", "titre": "Rénovation façade", "montant": 6300, "etape": "perdu", "dateMaj": "2026-04-11" }
+  ]
+}

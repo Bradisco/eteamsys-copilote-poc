@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>eTeamsys — Copilote Commercial IA (POC)</title>
+<style>
+  :root{
+    --hero-bg:#14151b;
+    --hero-fg:#f4f5f7;
+    --bg:#f4f6f9;
+    --surface:#ffffff;
+    --text:#1c1f26;
+    --text-muted:#5b6270;
+    --border:#e3e6ec;
+    --cat-1:#2a78d6;
+    --cat-2:#eb6834;
+    --cat-3:#1baf7a;
+    --cat-4:#eda100;
+    --seq-250:#cfe0f7;
+    --seq-350:#a9c8ef;
+    --seq-450:#7fadea;
+    --seq-550:#5590e0;
+    --seq-650:#2f6fd1;
+    --good:#0ca30c;
+    --warning:#fab219;
+    --serious:#ec835a;
+    --critical:#d03b3b;
+    --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0d0e12; --surface:#181a21; --text:#eef0f4; --text-muted:#9aa2b1; --border:#2a2d36;
+      --seq-250:#274b7a; --seq-350:#2d5a92; --seq-450:#356baf; --seq-550:#3d7cc9; --seq-650:#4a8fe0;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d0e12; --surface:#181a21; --text:#eef0f4; --text-muted:#9aa2b1; --border:#2a2d36;
+    --seq-250:#274b7a; --seq-350:#2d5a92; --seq-450:#356baf; --seq-550:#3d7cc9; --seq-650:#4a8fe0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .hero{background:var(--hero-bg);color:var(--hero-fg);padding:20px 28px 50px;position:relative}
+  .hero-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.02em;font-size:15px;opacity:.9}
+  .nav-pills{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{padding:7px 14px;border-radius:999px;font-size:13px;color:rgba(244,245,247,.65);border:1px solid rgba(255,255,255,.12);cursor:default;white-space:nowrap}
+  .pill.active{background:rgba(255,255,255,.14);color:#fff;border-color:transparent}
+  .pill.stub{opacity:.55}
+  .source-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+  .source-pill{padding:6px 13px;border-radius:999px;font-size:12.5px;color:rgba(244,245,247,.7);border:1px solid rgba(255,255,255,.16);cursor:pointer;background:transparent;font-family:inherit}
+  .source-pill.active{background:#fff;color:#14151b;font-weight:600;border-color:#fff}
+  .mode-badge{font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);color:rgba(244,245,247,.8)}
+  .mode-badge.live{border-color:var(--good);color:#8be08b}
+  .theme-toggle{background:transparent;border:1px solid rgba(255,255,255,.25);color:rgba(244,245,247,.85);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .ask-row{margin-top:18px}
+  .ask-bar{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:12px 16px}
+  .ask-bar input{flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:14px}
+  .ask-bar input::placeholder{color:rgba(244,245,247,.45)}
+  .badge-apercu{font-size:10px;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.12);padding:3px 8px;border-radius:6px;color:rgba(244,245,247,.75)}
+  .ask-chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .ask-chip{font-size:12px;color:rgba(244,245,247,.6);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:5px 12px}
+
+  .content{max-width:1180px;margin:-20px auto 60px;padding:0 28px;display:flex;flex-direction:column;gap:20px;position:relative;z-index:1}
+
+  .briefing{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 26px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+  .briefing-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .briefing p{margin:0;line-height:1.65;font-size:15px}
+  .briefing strong{color:var(--cat-1)}
+  .briefing-meta{margin-top:12px;font-size:12px;color:var(--text-muted)}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px}
+  .card h2{font-size:14px;margin:0 0 14px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .toggle-btn{font-size:12px;border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:8px;padding:5px 10px;cursor:pointer}
+
+  .funnel{display:flex;gap:2px;align-items:stretch;height:92px;border-radius:10px;overflow:hidden}
+  .fseg{position:relative;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;line-height:1.25;text-align:center;padding:0 6px;cursor:default}
+  .fseg small{display:block;font-size:15px;font-weight:700;margin-top:3px}
+  .flow-tooltip{position:fixed;background:#111;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;pointer-events:none;z-index:50;display:none;max-width:220px}
+  .flow-table{width:100%;border-collapse:collapse;font-size:13px;display:none}
+  .flow-table.visible{display:table}
+  .funnel-wrap.table-mode .funnel{display:none}
+  .flow-table th,.flow-table td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--border)}
+
+  .grid-2{display:grid;grid-template-columns:1.3fr 1fr;gap:20px}
+  @media (max-width:820px){.grid-2{grid-template-columns:1fr}}
+
+  .lifecycle-list{display:flex;flex-direction:column;gap:10px}
+  .lc-row{display:grid;grid-template-columns:150px 1fr 60px;align-items:center;gap:10px;font-size:13px}
+  .lc-bar-bg{background:var(--border);border-radius:6px;height:10px;overflow:hidden}
+  .lc-bar-fill{height:100%;border-radius:6px}
+  .lc-count{text-align:right;color:var(--text-muted)}
+
+  .feed{display:flex;flex-direction:column}
+  .feed-row{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+  .feed-row:last-child{border-bottom:none}
+  .status-dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex-shrink:0}
+  .status-dot.good{background:var(--good)}
+  .status-dot.warning{background:var(--warning)}
+  .status-dot.serious{background:var(--serious)}
+  .mod-tag{font-size:10px;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px;color:#fff;flex-shrink:0;background:var(--cat-1)}
+  .feed-text{font-size:13.5px;line-height:1.5}
+  .feed-text b{font-weight:700}
+
+  .mod-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media (max-width:820px){.mod-strip{grid-template-columns:repeat(2,1fr)}}
+  .mod-mini{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;opacity:.85}
+  .mod-mini h3{font-size:12px;margin:0 0 4px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)}
+  .mod-mini p{margin:0;font-size:12.5px;color:var(--text-muted)}
+  .mod-mini .stub-flag{display:inline-block;margin-top:6px;font-size:10px;background:var(--warning);color:#1c1f26;padding:2px 7px;border-radius:5px}
+
+  .footer-note{font-size:11.5px;color:var(--text-muted);text-align:center;padding:0 0 30px}
+  .loading{padding:40px;text-align:center;color:var(--text-muted)}
+
+  .admin{border-top:1px dashed var(--border);margin-top:16px;padding-top:16px}
+  .admin h3{font-size:13px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)}
+  .admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:820px){.admin-grid{grid-template-columns:1fr}}
+  .form-row{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+  .form-row label{font-size:12px;color:var(--text-muted)}
+  .form-row input,.form-row select{padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)}
+  .btn{background:var(--cat-1);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer}
+  .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+  .mini-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .mini-table th,.mini-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+  .import-zone{border:1.5px dashed var(--border);border-radius:10px;padding:16px;text-align:center;font-size:12.5px;color:var(--text-muted)}
+  .import-result{margin-top:10px;font-size:12.5px}
+  .badge-statut{font-size:10px;padding:2px 6px;border-radius:5px;color:#fff}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="hero">
+    <div class="hero-top">
+      <div class="brand">eTeamsys</div>
+      <div class="nav-pills">
+        <div class="pill active">Aujourd'hui</div>
+        <div class="pill stub">Acquisition</div>
+        <div class="pill stub">SEO Cruz</div>
+        <div class="pill">CRM</div>
+        <div class="pill">Copilote</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="mode-badge" id="modeBadge">chargement…</div>
+        <button class="theme-toggle" id="themeToggle">Mode sombre</button>
+      </div>
+    </div>
+    <div class="source-pills" id="sourcePills">
+      <button class="source-pill" data-source="hubspot">Source : HubSpot</button>
+      <button class="source-pill" data-source="odoo">Source : Odoo</button>
+      <button class="source-pill" data-source="crm-basique">Source : CRM basique eTeamsys</button>
+    </div>
+    <div class="ask-row">
+      <div class="ask-bar">
+        <span class="badge-apercu">Aperçu</span>
+        <input type="text" placeholder="Demandez au copilote… (ex. « Qui dois-je relancer aujourd'hui ? »)" disabled />
+      </div>
+      <div class="ask-chips">
+        <div class="ask-chip">Qui relancer aujourd'hui ?</div>
+        <div class="ask-chip">Résumer les deals en négociation</div>
+        <div class="ask-chip">Quels contacts sont dormants ?</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="mainContent" class="loading">Connexion à la source de données…</div>
+  </div>
+  <div class="footer-note" id="footerNote"></div>
+</div>
+
+<div class="flow-tooltip" id="flowTip"></div>
+
+<script>
+const CAT = ['var(--seq-650)','var(--seq-550)','var(--seq-450)','var(--seq-350)','var(--seq-250)'];
+let currentSource = 'hubspot';
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function bold(s){ return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); }
+function fmtNum(n){ return Math.round(n||0).toLocaleString('fr-FR'); }
+function fmtEUR(n){ return Math.round(n||0).toLocaleString('fr-FR') + ' €'; }
+
+document.querySelectorAll('.source-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentSource = btn.dataset.source;
+    document.querySelectorAll('.source-pill').forEach(b => b.classList.toggle('active', b === btn));
+    load();
+  });
+});
+
+async function load(){
+  document.getElementById('mainContent').innerHTML = '<div class="loading">Connexion à la source de données…</div>';
+  let data;
+  try {
+    const res = await fetch('/api/overview?source=' + encodeURIComponent(currentSource));
+    data = await res.json();
+    if (data.error) throw new Error(data.error + (data.detail ? ' — ' + data.detail : ''));
+  } catch (e) {
+    document.getElementById('mainContent').innerHTML =
+      '<div class="card"><h2>Erreur</h2><p>' + esc(e.message) + '</p></div>';
+    return;
+  }
+  render(data);
+}
+
+function render(data){
+  const modeBadge = document.getElementById('modeBadge');
+  modeBadge.classList.remove('live');
+  modeBadge.textContent = data.demoMode ? 'DÉMO · ' + (data.sourceLabel || '') : 'LIVE · ' + (data.sourceLabel || '');
+  if (!data.demoMode) modeBadge.classList.add('live');
+
+  const funnelTotal = (data.funnel||[]).reduce((a, s) => a + s.count, 0) || 1;
+  const lcTotal = (data.lifecycle||[]).reduce((a, s) => a + s.count, 0) || 1;
+  const lcColors = ['var(--cat-1)','var(--cat-2)','var(--cat-3)','var(--cat-4)','var(--seq-650)','var(--seq-550)','var(--seq-450)','var(--seq-350)'];
+  const feedTones = { warning: 'warning', serious: 'serious', good: 'good' };
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="briefing">
+      <div class="briefing-label"><span>Briefing du jour — généré à partir des données</span><span>${esc(data.sourceLabel||'')}</span></div>
+      <p>${bold(data.briefing)}</p>
+      <div class="briefing-meta">${esc(data.note||'')} · relevé du ${esc(data.asOf)}</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <h2>Funnel commercial</h2>
+          <button class="toggle-btn" id="flowToggle">Vue tableau</button>
+        </div>
+        <div class="funnel-wrap">
+          <div class="funnel" id="funnel">
+            ${(data.funnel||[]).map((s, i) => `
+              <div class="fseg" data-label="${esc(s.label)}" data-count="${s.count}"
+                   style="flex:${Math.max(s.count,1)} 0 0;background:${CAT[i % CAT.length]}">
+                <span>${esc(s.short || s.label)}<small>${fmtNum(s.count)}</small></span>
+              </div>`).join('')}
+          </div>
+          <table class="flow-table" id="flowTable">
+            <thead><tr><th>Étape</th><th>Deals</th><th>Part</th></tr></thead>
+            <tbody>
+              ${(data.funnel||[]).map(s => `
+                <tr><td>${esc(s.label)}</td><td>${fmtNum(s.count)}</td>
+                <td>${Math.round(s.count/funnelTotal*100)}%</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Répartition des contacts</h2>
+        <div class="lifecycle-list">
+          ${(data.lifecycle||[]).map((s, i) => `
+            <div class="lc-row">
+              <div>${esc(s.label)}</div>
+              <div class="lc-bar-bg"><div class="lc-bar-fill" style="width:${Math.min(100, s.count/lcTotal*100*3)}%;background:${lcColors[i % lcColors.length]}"></div></div>
+              <div class="lc-count">${fmtNum(s.count)}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>À traiter en priorité</h2>
+      <div class="feed">
+        ${(data.relanceItems||[]).map(r => `
+          <div class="feed-row">
+            <span class="status-dot ${feedTones[r.tone]||'good'}"></span>
+            <span class="mod-tag">CRM</span>
+            <span class="feed-text"><b>${fmtNum(r.count)}</b> ${esc(r.label.charAt(0).toLowerCase()+r.label.slice(1))}.</span>
+          </div>`).join('')}
+        <div class="feed-row">
+          <span class="status-dot good"></span>
+          <span class="mod-tag" style="background:var(--cat-3)">CRM</span>
+          <span class="feed-text"><b>${fmtNum(data.revenueWon.count)}</b> deals gagnés (${esc(data.revenueWon.periodLabel||'')}), pour <b>${fmtEUR(data.revenueWon.amount)}</b> de revenu attribué.</span>
+        </div>
+        ${data.dataHygiene ? `
+        <div class="feed-row">
+          <span class="status-dot warning"></span>
+          <span class="mod-tag" style="background:var(--cat-4)">Données</span>
+          <span class="feed-text"><b>${fmtNum(data.dataHygiene.count)}</b> ${esc(data.dataHygiene.label.charAt(0).toLowerCase()+data.dataHygiene.label.slice(1))} — à faire nettoyer par la couche « Palier 0 ».</span>
+        </div>` : ''}
+      </div>
+    </div>
+
+    ${data.source === 'crm-basique' ? renderCrmBasiqueAdmin() : ''}
+
+    <div class="mod-strip">
+      <div class="mod-mini"><h3>Acquisition</h3><p>Trafic &amp; campagnes</p><span class="stub-flag">Aperçu — simulé</span></div>
+      <div class="mod-mini"><h3>SEO Cruz</h3><p>Campagnes SEO pilotables</p><span class="stub-flag">Aperçu — simulé</span></div>
+      <div class="mod-mini"><h3>CRM</h3><p>${esc(data.sourceLabel||'')}</p><span class="stub-flag" style="background:var(--good);color:#fff">${data.demoMode ? 'Démo' : 'Live'}</span></div>
+      <div class="mod-mini"><h3>Copilote</h3><p>Scoring &amp; briefing</p><span class="stub-flag" style="background:var(--good);color:#fff">${data.demoMode ? 'Démo' : 'Live'}</span></div>
+    </div>
+  `;
+
+  document.getElementById('footerNote').textContent =
+    "POC exploratoire eTeamsys — Acquisition et SEO Cruz sont simulés. Ce panneau illustre l'architecture « socle stable + adaptateurs d'entrée » : la même vue fonctionne quelle que soit la source CRM choisie ci-dessus.";
+
+  wireFunnelInteractions();
+  if (data.source === 'crm-basique') wireCrmBasiqueAdmin();
+}
+
+function renderCrmBasiqueAdmin(){
+  return `
+    <div class="card">
+      <h2>Administration — CRM basique eTeamsys</h2>
+      <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Ce panneau simule ce que verrait un client venant d'Excel ou d'un CRM fait maison : un formulaire simple, et un import de fichier — pas d'écran de configuration.</p>
+      <div class="admin-grid">
+        <div>
+          <div class="admin"><h3>Ajouter un contact</h3>
+            <div class="form-row"><label>Nom</label><input id="cbNom" type="text" placeholder="Ex. Julie Marchand" /></div>
+            <div class="form-row"><label>Société</label><input id="cbSociete" type="text" /></div>
+            <div class="form-row"><label>Email</label><input id="cbEmail" type="email" /></div>
+            <div class="form-row"><label>Téléphone</label><input id="cbTelephone" type="text" /></div>
+            <div class="form-row"><label>Statut</label>
+              <select id="cbStatut"><option value="lead">Lead</option><option value="qualifie">Qualifié</option><option value="client">Client</option></select>
+            </div>
+            <button class="btn" id="cbAddBtn">Ajouter le contact</button>
+            <div class="import-result" id="cbAddResult"></div>
+          </div>
+        </div>
+        <div>
+          <div class="admin"><h3>Importer un fichier Excel / CSV</h3>
+            <div class="import-zone">Sélectionnez un fichier .xlsx ou .csv contenant vos contacts (colonnes nom / société / email / téléphone, dans n'importe quel ordre — la correspondance est détectée automatiquement).
+              <div style="margin-top:10px"><input type="file" id="cbFile" accept=".xlsx,.xls,.csv" /></div>
+            </div>
+            <div class="import-result" id="cbImportResult"></div>
+          </div>
+        </div>
+      </div>
+      <div class="admin">
+        <h3>Contacts actuels</h3>
+        <table class="mini-table" id="cbTable"><thead><tr><th>Nom</th><th>Société</th><th>Email</th><th>Statut</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  `;
+}
+
+async function refreshCrmBasiqueTable(){
+  const res = await fetch('/api/crm-basique/contacts');
+  const contacts = await res.json();
+  const tones = { lead: 'var(--cat-4)', qualifie: 'var(--cat-1)', client: 'var(--good)' };
+  const labels = { lead: 'Lead', qualifie: 'Qualifié', client: 'Client' };
+  const tbody = document.querySelector('#cbTable tbody');
+  if (!tbody) return;
+  tbody.innerHTML = contacts.slice(-15).reverse().map(c => `
+    <tr><td>${esc(c.nom)}</td><td>${esc(c.societe||'—')}</td><td>${esc(c.email||'—')}</td>
+    <td><span class="badge-statut" style="background:${tones[c.statut]||'var(--text-muted)'}">${labels[c.statut]||c.statut}</span></td></tr>`).join('');
+}
+
+function wireCrmBasiqueAdmin(){
+  refreshCrmBasiqueTable();
+  const addBtn = document.getElementById('cbAddBtn');
+  if (addBtn) addBtn.addEventListener('click', async () => {
+    const body = {
+      nom: document.getElementById('cbNom').value,
+      societe: document.getElementById('cbSociete').value,
+      email: document.getElementById('cbEmail').value,
+      telephone: document.getElementById('cbTelephone').value,
+      statut: document.getElementById('cbStatut').value,
+    };
+    const resultEl = document.getElementById('cbAddResult');
+    if (!body.nom) { resultEl.textContent = 'Le nom est obligatoire.'; return; }
+    const res = await fetch('/api/crm-basique/contacts', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.error) { resultEl.textContent = data.error; return; }
+    resultEl.textContent = 'Contact ajouté : ' + data.nom;
+    document.getElementById('cbNom').value = '';
+    document.getElementById('cbSociete').value = '';
+    document.getElementById('cbEmail').value = '';
+    document.getElementById('cbTelephone').value = '';
+    refreshCrmBasiqueTable();
+    load(); // rafraîchit aussi le briefing/funnel avec le nouveau contact
+  });
+
+  const fileInput = document.getElementById('cbFile');
+  if (fileInput) fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const resultEl = document.getElementById('cbImportResult');
+    resultEl.textContent = 'Lecture du fichier…';
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(',')[1];
+      const res = await fetch('/api/crm-basique/import', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ base64, filename: file.name }),
+      });
+      const data = await res.json();
+      if (data.error) { resultEl.textContent = 'Erreur : ' + data.error; return; }
+      resultEl.textContent = `${data.imported} contact(s) importé(s) sur ${data.totalRows} ligne(s) (colonnes détectées : ${Object.keys(data.mapping).join(', ') || 'aucune'}).`;
+      refreshCrmBasiqueTable();
+      load();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function wireFunnelInteractions(){
+  const tip = document.getElementById('flowTip');
+  document.querySelectorAll('.fseg').forEach(seg => {
+    seg.addEventListener('mousemove', (e) => {
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX + 14) + 'px';
+      tip.style.top = (e.clientY + 14) + 'px';
+      tip.textContent = seg.dataset.label + ' : ' + Number(seg.dataset.count).toLocaleString('fr-FR');
+    });
+    seg.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  });
+  const toggleBtn = document.getElementById('flowToggle');
+  const wrap = document.querySelector('.funnel-wrap');
+  const table = document.getElementById('flowTable');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const isTable = wrap.classList.toggle('table-mode');
+      table.classList.toggle('visible', isTable);
+      toggleBtn.textContent = isTable ? 'Vue graphique' : 'Vue tableau';
+    });
+  }
+}
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme');
+  root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+});
+
+document.querySelector('.source-pill[data-source="hubspot"]').classList.add('active');
+load();
+</script>
+</body>
+</html>
