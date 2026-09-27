@@ -63,6 +63,9 @@ Sens des statuts de module :
 - `non-applicable` : entrée désactivée ou indisponible pour ce profil.
 - Un statut `actif` ne crée pas une fonctionnalité absente : les modules non construits
   en phase 1 restent des aperçus explicites.
+- Le badge d'un module et celui de sa source sont distincts : un CRM connecté peut
+  alimenter un tableau de bord dont le module est encore en mode démo. Le copilote
+  lui-même est toujours présenté comme une simulation dans cette phase.
 
 Le statut client (`prospect`, `actif`, `résilié`) est une information de gestion. Sans
 authentification, il ne constitue pas un contrôle d'accès.
@@ -108,15 +111,20 @@ navigation actuelle par une barre latérale avec les entrées, dans cet ordre :
 10. Pages de site web
 11. Tableaux de bord
 
-Contacts et Entreprises sont disponibles par défaut. Tableaux de bord reste également
-accessible afin de préserver la fonctionnalité principale déjà démontrée. Les autres
-modules sont déterminés par leur statut de profil ; ceux qui ne sont pas implémentés
-affichent un aperçu honnête, sans fausses données présentées comme réelles.
+Contacts et Entreprises sont disponibles par défaut. Tableaux de bord, configuré
+`demo` par défaut, reste également consultable afin de préserver la fonctionnalité
+principale déjà démontrée ; s'il est configuré `non-applicable`, son entrée est
+désactivée. Les autres modules sont déterminés par leur statut de profil ; ceux qui
+ne sont pas implémentés affichent un aperçu honnête, sans fausses données présentées
+comme réelles.
 
 La vue principale indique le profil sélectionné, son secteur et son CRM, ainsi que le
 statut DÉMO/LIVE fourni par l'adaptateur. Le sélecteur source global est remplacé dans
 l'interface par la sélection « Voir en tant que ce client ». Les routes conservent
 toutefois la compatibilité avec le paramètre historique `source`.
+Si aucun profil n'existe encore ou n'est sélectionné, la page invite à ouvrir
+`/admin` pour en créer ou en choisir un. Un `clientId` inconnu produit une erreur
+visible, jamais une bascule silencieuse vers un autre profil.
 
 ### Contacts
 
@@ -173,11 +181,15 @@ Ajouter les routes de gestion :
 - `PUT /api/admin/clients/:id`
 - `DELETE /api/admin/clients/:id`
 
-Ajouter les lectures normalisées Contacts et Entreprises ainsi que la route du copilote,
-avec `clientId` comme paramètre de sélection. `GET /api/overview` accepte aussi
-`clientId`. Si `clientId` est présent, il détermine `crmExistant` et prime sur `source`.
-Sans `clientId`, les routes continuent d'accepter `source=hubspot|odoo|crm-basique`
-pour préserver l'usage existant.
+Ajouter `GET /api/contacts`, `GET /api/companies`, `POST /api/copilot/ask`,
+`GET /api/copilot/credits` et `POST /api/copilot/recharge`. Les lectures normalisées
+Contacts et Entreprises, ainsi que `GET /api/overview`, acceptent `clientId`
+comme paramètre de sélection. S'il est présent, il détermine `crmExistant` et prime
+sur `source`. Sans `clientId`, ces routes de lecture continuent d'accepter
+`source=hubspot|odoo|crm-basique` pour préserver l'usage existant de
+`GET /api/overview`. Les nouvelles routes du copilote exigent `clientId`, car les
+crédits sont rattachés à un profil et ne peuvent pas être débités sur une source
+globale sans propriétaire.
 
 Un identifiant inconnu renvoie une erreur explicite. Les entrées d'administration sont
 validées côté serveur avant sauvegarde. Aucune route d'administration n'est protégée
