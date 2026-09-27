@@ -1,0 +1,1 @@
+- [Profils clients du POC](poc-client-profiles.md) — profils de démonstration distincts pour réglages et crédits, mais données CRM partagées; aucune isolation client.
