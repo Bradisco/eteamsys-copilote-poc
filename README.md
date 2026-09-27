@@ -1,10 +1,9 @@
-# POC — Copilote Commercial IA eTeamsys
+# POC eTeamsys : profils clients et copilote de démonstration
 
-Prototype qui illustre l'architecture retenue pour le module CRM :
-un **socle commun** (briefing, funnel commercial, relances, revenu
-attribué, hygiène des données) alimenté par **trois sources
-interchangeables**, sélectionnables en direct dans la page via les
-pastilles "Source :" en haut :
+Ce prototype illustre un **socle commun** (briefing, funnel, relances,
+revenu attribué, hygiène des données) alimenté par trois sources CRM.
+Le backoffice `/admin` crée des profils de démonstration, puis le bouton
+« Voir en tant que ce client » ouvre l'application avec le profil choisi :
 
 1. **HubSpot** — connecteur API réel, en lecture seule. Testé sur le
    vrai compte HubSpot d'eTeamsys.
@@ -15,25 +14,32 @@ pastilles "Source :" en haut :
    prospects qui partent d'un fichier Excel ou d'un outil fait maison
    plutôt que de tenter d'absorber la complexité de leur système.
 
-Aucune IA "boîte noire" : toute la logique de calcul est lisible dans
-`server.js`. Les modules **Acquisition** et **SEO Cruz** restent
-simulés (étiquetés "aperçu") en attendant la confirmation de l'accès
-aux données du générateur de trafic / SEO Cruz.
+Aucune IA générative ni paiement : les suggestions et réponses du copilote
+proviennent uniquement des indicateurs CRM chargés. Un crédit fictif est
+débité par question, et la recharge est une simulation.
 
-## Déployer sur Replit
+> **Outil interne — non protégé, ne pas exposer publiquement tel quel.**
+> Les profils ne sont pas des comptes utilisateurs isolés. Ne pas importer
+> de vraies données clients ni configurer un token de production sur une
+> application accessible publiquement sans authentification et isolation.
 
-1. Créer un nouveau Repl → Node.js (ou "Blank Repl" en précisant
-   Node.js), puis importer ce dossier (`eteamsys_poc`) — voir la
-   section "Comment importer sans GitHub" plus bas si besoin.
-2. Lancer `npm install` dans le shell Replit (installe Express et la
-   librairie `xlsx` utilisée pour l'import Excel).
-3. Cliquer sur "Run". Le site s'ouvre avec la source **HubSpot** par
-   défaut, en **mode démo** (badge orange). C'est normal tant qu'aucune
-   variable n'est configurée.
-4. Le **CRM basique eTeamsys** fonctionne immédiatement, sans rien
-   configurer : cliquez sur la pastille "Source : CRM basique
-   eTeamsys" pour voir le formulaire d'ajout de contact et l'import de
-   fichier Excel/CSV.
+## Lancer le prototype sur Replit
+
+1. Installer les dépendances avec `npm install`, puis lancer `npm start`
+   (port 5000). Lancer les vérifications avec `npm test`.
+2. Ouvrir `/admin` et créer trois profils fictifs : un avec « Aucun CRM »,
+   un avec HubSpot, un avec Odoo. Le nom, le secteur parmi sept choix, le
+   statut, le consultant, les onze modules et le solde sont modifiables.
+3. Cliquer sur « Voir en tant que ce client » pour ouvrir la vue principale.
+   Sans profil sélectionné, celle-ci invite à revenir sur `/admin`.
+4. Ouvrir Contacts, Entreprises et Tableaux de bord. Les autres entrées
+   sont des aperçus ou désactivées selon les réglages du profil.
+
+Les profils et crédits sont stockés dans `data/clients.json`, créé à la
+première sauvegarde et ignoré par Git. La suppression d'un profil efface
+sa configuration et son historique de crédits, pas les contacts partagés.
+Les anciennes lectures `/api/overview?source=hubspot|odoo|crm-basique`
+restent utilisables; les nouvelles routes du copilote exigent `clientId`.
 
 ### Comment importer sans GitHub
 
@@ -53,7 +59,11 @@ du dossier (`server.js`, `package.json`, `public/`, `data/`,
    `crm.objects.companies.read`.
 2. **Ne jamais coller ce token dans un chat.** Dans Replit : onglet
    "Secrets" → nouvelle variable `HUBSPOT_TOKEN` → coller le token là.
-3. Relancer le Repl. Le badge passe en "LIVE".
+3. Relancer le Repl. Le badge de source passe en "LIVE" si l'API répond.
+   Sans token, le tableau de bord HubSpot affiche l'instantané daté du
+   18/09/2026, mais **les listes Contacts/Entreprises utilisent des
+   exemples fictifs** signalés DÉMO, et non des contacts tirés de cet
+   instantané.
 
 ### Odoo
 
@@ -100,14 +110,46 @@ Le stockage JSON local est adapté à un POC, pas à de la production
 (pas de gestion multi-clients, pas de base de données réelle) — à
 remplacer par une vraie base avant d'aller plus loin.
 
+### Profils, navigation et crédits
+
+Chaque profil possède ses propres réglages et son solde initial de **20
+crédits**. Une question libre, le bouton Résumé ou une suggestion utilisée
+coûte **1 crédit**; à zéro, le copilote affiche « Crédits épuisés ».
+« Recharger (simulation) » ajoute **20 crédits fictifs**, sans paiement.
+Le solde et l'historique persistent après redémarrage; un changement
+manuel du solde depuis `/admin` est journalisé.
+
+Les profils HubSpot partagent le même token global, les profils Odoo
+partagent les mêmes variables Odoo, et les profils sans CRM partagent
+`data/crm-basique.json`. Ces scénarios **ne séparent pas les données entre
+clients**. Un connecteur configuré qui échoue affiche une erreur au lieu
+de remplacer silencieusement le résultat par un exemple fictif.
+
+| Module | État dans cette phase |
+| --- | --- |
+| Contacts | Liste paginée : HubSpot/Odoo en lecture seule (démo fictive sans identifiants), CRM basique avec ajout et import |
+| Entreprises | HubSpot Companies/Odoo partenaires entreprises en lecture seule; CRM basique : regroupement dérivé des contacts |
+| Transactions | Aperçu; le funnel existant reste dans Tableaux de bord |
+| E-mails marketing | Aperçu, aucun e-mail envoyé |
+| SEO | Aperçu, aucun connecteur SEOCruz actif |
+| Réseaux sociaux | À venir, sans données simulées |
+| Publicités | Aperçu, aucun connecteur SEA actif |
+| Formulaires | Aperçu, pas de liste de formulaires active |
+| Pages de destination | Aperçu, pas de constructeur client |
+| Pages de site web | Aperçu, pas de connecteur Google Search Console |
+| Tableaux de bord | Briefing, funnel graphique/tableau, contacts et relances existants; statut de module `demo` par défaut, vue consultable |
+
+Chaque entrée peut être réglée sur `actif`, `demo` ou `non-applicable`.
+`non-applicable` désactive l'entrée. `actif` ne construit pas pour autant
+un module encore en aperçu. Le badge du CRM (LIVE/DÉMO) et le statut du
+module sont distincts. Le copilote reste **une simulation eTeamsys**
+même quand la source CRM est LIVE. « Créer » et « Réunions » sont désactivés.
+
 ## Ce que ce POC démontre
 
-- L'architecture "socle stable + adaptateurs d'entrée" retenue pour le
-  module CRM fonctionne réellement : la même page (briefing, funnel,
-  relances, revenu, hygiène des données) s'affiche à l'identique quelle
-  que soit la source choisie — HubSpot, Odoo, ou le CRM basique
-  propriétaire. Ce n'est pas trois maquettes différentes, c'est un seul
-  frontend alimenté par trois backends normalisés.
+- L'architecture "socle stable + adaptateurs d'entrée" alimente les
+  mêmes vues Contacts, Entreprises et Tableaux de bord selon le CRM du
+  profil; le tableau de bord conserve ses indicateurs et son briefing.
 - Une vraie photographie des données eTeamsys au 18/09/2026 côté
   HubSpot (voir `HS_DEMO_SNAPSHOT` dans `server.js`) : environ 25 000
   contacts, un pipeline commercial qui coexiste avec 3 autres pipelines
@@ -122,15 +164,17 @@ remplacer par une vraie base avant d'aller plus loin.
 
 ## Limites de ce POC
 
-- Pas d'authentification, pas de cache — à ne pas exposer publiquement
-  avec un vrai token sans ajouter au moins un mot de passe basique.
+- Pas d'authentification, d'autorisations ni d'isolation multi-client :
+  `/admin` et ses routes sont accessibles sans connexion. Ne pas publier
+  tel quel; prévoir une vraie sécurité avant tout usage avec données réelles.
 - Le connecteur Odoo n'a pas été validé sur un compte réel (voir
   ci-dessus) — c'est le point le plus important à traiter avant de le
   montrer à un client.
 - Le CRM basique utilise un fichier JSON local, pas une vraie base de
   données ni une isolation multi-clients.
-- Acquisition et SEO Cruz sont des cartes non connectées, pas des
-  intégrations réelles.
+- Les autres modules de la barre latérale restent des aperçus et ne sont
+  pas des intégrations réelles. Les tableaux de bord sectoriels sont
+  reportés à une phase ultérieure.
 - Les endpoints de comptage HubSpot sont rapides, mais les sommes
   paginent jusqu'à 1000 enregistrements ; suffisant pour ce POC, à
   revoir avant un usage en production.

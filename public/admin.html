@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profils clients | eTeamsys</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/admin.css">
+  <script src="/admin.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div><a class="brand" href="/">eTeamsys</a><span class="top-label">Configuration des démonstrations</span></div>
+    <a class="back-link" href="/">Retour à l'application</a>
+  </header>
+  <main class="admin-layout">
+    <div class="page-heading">
+      <div><p class="eyebrow">Backoffice interne</p><h1>Profils clients</h1><p>Préparez vos scénarios de démonstration, puis ouvrez l'application avec le profil choisi.</p></div>
+      <button class="button secondary" id="newClient" type="button">Nouveau profil</button>
+    </div>
+    <p class="warning" role="note">Outil interne — non protégé, ne pas exposer publiquement tel quel.</p>
+    <p id="pageError" role="alert" class="error" hidden></p>
+    <section class="panel">
+      <div class="section-head"><h2>Profils disponibles</h2><span id="count" class="count"></span></div>
+      <div class="table-wrap">
+        <table id="clientsTable">
+          <thead><tr><th scope="col">Client</th><th scope="col">Secteur</th><th scope="col">CRM</th><th scope="col">Statut</th><th scope="col">Crédits</th><th scope="col">Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="emptyState" class="empty">Aucun profil pour le moment. Créez-en un ci-dessous pour commencer.</p>
+    </section>
+    <section class="panel editor">
+      <div class="section-head"><h2 id="formTitle">Créer un profil</h2><span class="hint">Les contacts d'un même CRM sont partagés entre profils.</span></div>
+      <form id="clientForm">
+        <div class="form-grid">
+          <label>Nom du client <input id="nom" name="nom" maxlength="160" required placeholder="Ex. Atelier fictif"></label>
+          <label>Secteur d'activité <select id="secteur" name="secteur"></select></label>
+          <label>CRM existant <select id="crmExistant" name="crmExistant">
+            <option value="aucun">Aucun, CRM basique eTeamsys</option>
+            <option value="hubspot">HubSpot</option>
+            <option value="odoo">Odoo</option>
+          </select></label>
+          <label>Statut <select id="statut" name="statut">
+            <option value="prospect">Prospect</option><option value="actif">Actif</option><option value="résilié">Résilié</option>
+          </select></label>
+          <label>Consultant référent <input id="consultantReferent" name="consultantReferent" maxlength="160" placeholder="Facultatif"></label>
+          <label>Solde de crédits <input id="solde" name="solde" type="number" min="0" step="1" value="20" required></label>
+        </div>
+        <fieldset><legend>État des modules</legend><div class="module-grid" id="moduleFields"></div></fieldset>
+        <div id="historySection" class="history" hidden>
+          <h3>Historique des crédits</h3><p id="createdAt" class="hint"></p><ul id="historyList"></ul>
+        </div>
+        <p class="hint">Une modification manuelle du solde sera enregistrée dans l'historique. Les recharges sont simulées.</p>
+        <p id="formError" role="alert" class="error" hidden></p>
+        <div class="form-actions"><button class="button" type="submit" id="saveButton">Créer le profil</button><button class="button secondary" type="button" id="cancelEdit" hidden>Annuler</button></div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

@@ -27,6 +27,11 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { createClientStore, sourceForClient } = require('./lib/client-store');
+const { registerAdminRoutes, resolveClientSource, sendError } = require('./lib/client-routes');
+const { createDirectory } = require('./lib/crm-directory');
+const { buildSuggestions, answerQuestion } = require('./lib/demo-copilot');
+const { readImportRows } = require('./lib/crm-import');
 let XLSX;
 try { XLSX = require('xlsx'); } catch (e) { XLSX = null; }
 
@@ -45,6 +50,8 @@ const ODOO_CONFIGURED = !!(ODOO_URL && ODOO_DB && ODOO_USERNAME && ODOO_PASSWORD
 
 const CRM_BASIQUE_FILE = path.join(__dirname, 'data', 'crm-basique.json');
 const CRM_BASIQUE_SEED_FILE = path.join(__dirname, 'data', 'crm-basique.seed.json');
+const clientStore = createClientStore(path.join(__dirname, 'data', 'clients.json'));
+registerAdminRoutes(app, clientStore);
 
 function yearRange(year) {
   return { from: `${year}-01-01`, to: `${year}-12-31` };
@@ -92,6 +99,15 @@ async function hsSearch(objectType, body) {
   });
   if (!res.ok) throw new Error(`HubSpot ${objectType} search ${res.status}: ${await res.text()}`);
   return res.json();
+}
+async function hsList(objectType, properties, cursor, limit) {
+  const url = new URL(`${HS_BASE}/crm/v3/objects/${objectType}`);
+  url.searchParams.set('limit', String(limit));
+  url.searchParams.set('properties', properties.join(','));
+  if (cursor) url.searchParams.set('after', cursor);
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } });
+  if (!response.ok) throw new Error(`HubSpot ${objectType} : HTTP ${response.status}`);
+  return response.json();
 }
 async function hsCount(objectType, filterGroups) {
   const data = await hsSearch(objectType, { filterGroups, limit: 1, properties: [] });
@@ -434,9 +450,7 @@ app.post('/api/crm-basique/import', (req, res) => {
   if (!base64) return res.status(400).json({ error: 'Aucun fichier reçu.' });
   try {
     const buffer = Buffer.from(base64, 'base64');
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    const rows = readImportRows(buffer, filename, XLSX);
     if (!rows.length) return res.status(400).json({ error: 'Le fichier ne contient aucune ligne exploitable.' });
 
     const headers = Object.keys(rows[0]);
@@ -494,25 +508,87 @@ function buildBriefing(p) {
 }
 
 // =============================================================================
-// Endpoint principal
+// API de démonstration par profil
 // =============================================================================
-app.get('/api/overview', async (req, res) => {
-  const source = (req.query.source || 'hubspot').toLowerCase();
-  try {
-    let payload;
-    if (source === 'hubspot') payload = await getHubspotOverview();
-    else if (source === 'odoo') payload = await getOdooOverview();
-    else if (source === 'crm-basique') payload = getCrmBasiqueOverview();
-    else return res.status(400).json({ error: 'Source inconnue : ' + source });
+const directory = createDirectory({
+  hubspotConfigured: !!HUBSPOT_TOKEN, odooConfigured: ODOO_CONFIGURED,
+  hsList, odooExecuteKw, loadCrmBasique,
+});
 
-    payload.briefing = buildBriefing(payload);
-    res.json(payload);
+async function getOverviewForSource(source) {
+  const readers = {
+    hubspot: getHubspotOverview,
+    odoo: getOdooOverview,
+    'crm-basique': getCrmBasiqueOverview,
+  };
+  const payload = await readers[source]();
+  payload.briefing = buildBriefing(payload);
+  payload.suggestions = buildSuggestions(payload);
+  return payload;
+}
+
+app.get('/api/overview', async (req, res) => {
+  try {
+    const { source } = resolveClientSource(req.query, clientStore);
+    res.json(await getOverviewForSource(source));
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: `Erreur lors de la lecture de la source "${source}".`, detail: String(err.message || err) });
+    sendError(res, err);
   }
 });
 
+for (const [route, method] of [['/api/contacts', 'contacts'], ['/api/companies', 'companies']]) {
+  app.get(route, async (req, res) => {
+    try {
+      const { source } = resolveClientSource(req.query, clientStore);
+      const limit = req.query.limit === undefined ? 50 : Number(req.query.limit);
+      const cursor = req.query.cursor || '';
+      res.json({ source, ...await directory[method](source, cursor, limit) });
+    } catch (err) {
+      console.error(err);
+      sendError(res, err);
+    }
+  });
+}
+
+app.get('/api/copilot/credits', (req, res) => {
+  if (!req.query.clientId) return res.status(400).json({ error: 'Profil client obligatoire.' });
+  try {
+    const client = clientStore.get(req.query.clientId);
+    res.json({ credits: client.credits, demoMode: true });
+  } catch (err) { sendError(res, err); }
+});
+
+app.post('/api/copilot/ask', async (req, res) => {
+  const { clientId, question } = req.body || {};
+  if (!clientId || typeof question !== 'string' || !question.trim() || question.length > 1000) {
+    return res.status(400).json({ error: 'Profil et question (1 à 1000 caractères) obligatoires.' });
+  }
+  try {
+    const client = clientStore.get(clientId);
+    if (client.credits.solde === 0) {
+      return res.status(409).json({ error: 'Crédits épuisés.', credits: client.credits, demoMode: true });
+    }
+    const overview = await getOverviewForSource(sourceForClient(client));
+    const answer = answerQuestion(overview, question);
+    const updated = clientStore.charge(clientId, 'question');
+    res.json({ answer, credits: updated.credits, demoMode: true });
+  } catch (err) {
+    console.error(err);
+    sendError(res, err);
+  }
+});
+
+app.post('/api/copilot/recharge', (req, res) => {
+  const clientId = req.body?.clientId;
+  if (!clientId) return res.status(400).json({ error: 'Profil client obligatoire.' });
+  try {
+    const updated = clientStore.recharge(clientId);
+    res.json({ credits: updated.credits, demoMode: true, message: '20 crédits fictifs ajoutés.' });
+  } catch (err) { sendError(res, err); }
+});
+
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.listen(PORT, () => {

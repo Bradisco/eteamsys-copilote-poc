@@ -1,5 +1,6 @@
 node_modules/
 .env
 data/crm-basique.json
+data/clients.json
 *.log
 .DS_Store

@@ -1,1 +1,2 @@
 - [Profils clients du POC](poc-client-profiles.md) — profils de démonstration distincts pour réglages et crédits, mais données CRM partagées; aucune isolation client.
+- [Encodage des imports CSV](csv-import-encoding.md) — un CSV français UTF-8 sans BOM peut perdre ses accents s'il est envoyé comme buffer à XLSX.

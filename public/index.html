@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>eTeamsys — Copilote Commercial IA (POC)</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   :root{
     --hero-bg:#14151b;
@@ -128,82 +129,45 @@
   .import-result{margin-top:10px;font-size:12.5px}
   .badge-statut{font-size:10px;padding:2px 6px;border-radius:5px;color:#fff}
 </style>
+<link rel="stylesheet" href="/app.css">
 </head>
 <body>
 
-<div id="app">
-  <div class="hero">
-    <div class="hero-top">
-      <div class="brand">eTeamsys</div>
-      <div class="nav-pills">
-        <div class="pill active">Aujourd'hui</div>
-        <div class="pill stub">Acquisition</div>
-        <div class="pill stub">SEO Cruz</div>
-        <div class="pill">CRM</div>
-        <div class="pill">Copilote</div>
+<div id="app" class="workspace">
+  <aside class="sidebar">
+    <a href="/" class="sidebar-brand">eTeamsys<span class="brand-caption">ESPACE DÉMONSTRATION</span></a>
+    <div class="sidebar-context"><span class="sidebar-caption">PROFIL SÉLECTIONNÉ</span><strong id="sidebarClient">Aucun profil</strong><small id="sidebarCrm"></small></div>
+    <nav id="sideNav" aria-label="Modules eTeamsys"></nav>
+    <a class="manage-link" href="/admin">Gérer les profils</a>
+  </aside>
+  <div class="workspace-main">
+    <header class="hero">
+      <div class="hero-top">
+        <div class="hero-context"><span>Vue client</span><strong id="clientName">Sélectionnez un profil</strong><small id="clientMeta"></small></div>
+        <div class="hero-actions"><span class="mode-badge" id="modeBadge">DÉMO</span><button class="theme-toggle" id="themeToggle" type="button">Mode sombre</button></div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="mode-badge" id="modeBadge">chargement…</div>
-        <button class="theme-toggle" id="themeToggle">Mode sombre</button>
-      </div>
+    </header>
+    <div class="workspace-body">
+      <main class="content">
+        <div class="view-heading"><div><p class="section-eyebrow">Plateforme eTeamsys</p><h1 id="viewTitle">Contacts</h1></div><span id="moduleBadge" class="module-badge"></span></div>
+        <div id="mainContent" aria-live="polite">Chargement du profil…</div>
+      </main>
+      <aside id="copilotPanel" class="copilot-panel" aria-label="Copilote de démonstration"></aside>
     </div>
-    <div class="source-pills" id="sourcePills">
-      <button class="source-pill" data-source="hubspot">Source : HubSpot</button>
-      <button class="source-pill" data-source="odoo">Source : Odoo</button>
-      <button class="source-pill" data-source="crm-basique">Source : CRM basique eTeamsys</button>
-    </div>
-    <div class="ask-row">
-      <div class="ask-bar">
-        <span class="badge-apercu">Aperçu</span>
-        <input type="text" placeholder="Demandez au copilote… (ex. « Qui dois-je relancer aujourd'hui ? »)" disabled />
-      </div>
-      <div class="ask-chips">
-        <div class="ask-chip">Qui relancer aujourd'hui ?</div>
-        <div class="ask-chip">Résumer les deals en négociation</div>
-        <div class="ask-chip">Quels contacts sont dormants ?</div>
-      </div>
-    </div>
+    <div class="footer-note" id="footerNote">POC exploratoire eTeamsys. Les exemples sont signalés DÉMO.</div>
   </div>
-
-  <div class="content">
-    <div id="mainContent" class="loading">Connexion à la source de données…</div>
-  </div>
-  <div class="footer-note" id="footerNote"></div>
 </div>
 
 <div class="flow-tooltip" id="flowTip"></div>
 
+<script src="/escape-html.js"></script>
 <script>
 const CAT = ['var(--seq-650)','var(--seq-550)','var(--seq-450)','var(--seq-350)','var(--seq-250)'];
-let currentSource = 'hubspot';
 
-function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+const esc = escapeHtml;
 function bold(s){ return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); }
 function fmtNum(n){ return Math.round(n||0).toLocaleString('fr-FR'); }
 function fmtEUR(n){ return Math.round(n||0).toLocaleString('fr-FR') + ' €'; }
-
-document.querySelectorAll('.source-pill').forEach(btn => {
-  btn.addEventListener('click', () => {
-    currentSource = btn.dataset.source;
-    document.querySelectorAll('.source-pill').forEach(b => b.classList.toggle('active', b === btn));
-    load();
-  });
-});
-
-async function load(){
-  document.getElementById('mainContent').innerHTML = '<div class="loading">Connexion à la source de données…</div>';
-  let data;
-  try {
-    const res = await fetch('/api/overview?source=' + encodeURIComponent(currentSource));
-    data = await res.json();
-    if (data.error) throw new Error(data.error + (data.detail ? ' — ' + data.detail : ''));
-  } catch (e) {
-    document.getElementById('mainContent').innerHTML =
-      '<div class="card"><h2>Erreur</h2><p>' + esc(e.message) + '</p></div>';
-    return;
-  }
-  render(data);
-}
 
 function render(data){
   const modeBadge = document.getElementById('modeBadge');
@@ -284,28 +248,19 @@ function render(data){
       </div>
     </div>
 
-    ${data.source === 'crm-basique' ? renderCrmBasiqueAdmin() : ''}
-
-    <div class="mod-strip">
-      <div class="mod-mini"><h3>Acquisition</h3><p>Trafic &amp; campagnes</p><span class="stub-flag">Aperçu — simulé</span></div>
-      <div class="mod-mini"><h3>SEO Cruz</h3><p>Campagnes SEO pilotables</p><span class="stub-flag">Aperçu — simulé</span></div>
-      <div class="mod-mini"><h3>CRM</h3><p>${esc(data.sourceLabel||'')}</p><span class="stub-flag" style="background:var(--good);color:#fff">${data.demoMode ? 'Démo' : 'Live'}</span></div>
-      <div class="mod-mini"><h3>Copilote</h3><p>Scoring &amp; briefing</p><span class="stub-flag" style="background:var(--good);color:#fff">${data.demoMode ? 'Démo' : 'Live'}</span></div>
-    </div>
   `;
 
   document.getElementById('footerNote').textContent =
-    "POC exploratoire eTeamsys — Acquisition et SEO Cruz sont simulés. Ce panneau illustre l'architecture « socle stable + adaptateurs d'entrée » : la même vue fonctionne quelle que soit la source CRM choisie ci-dessus.";
+    "POC exploratoire eTeamsys. Un badge DÉMO indique des exemples ou un module en aperçu ; le copilote est toujours simulé.";
 
   wireFunnelInteractions();
-  if (data.source === 'crm-basique') wireCrmBasiqueAdmin();
 }
 
 function renderCrmBasiqueAdmin(){
   return `
     <div class="card">
-      <h2>Administration — CRM basique eTeamsys</h2>
-      <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Ce panneau simule ce que verrait un client venant d'Excel ou d'un CRM fait maison : un formulaire simple, et un import de fichier — pas d'écran de configuration.</p>
+      <h2>Ajouter ou importer des contacts</h2>
+      <p style="font-size:12.5px;color:var(--text-muted);margin-top:-8px">Le CRM basique est partagé entre les profils sans CRM. Utilisez uniquement des données fictives pour ce POC.</p>
       <div class="admin-grid">
         <div>
           <div class="admin"><h3>Ajouter un contact</h3>
@@ -329,10 +284,6 @@ function renderCrmBasiqueAdmin(){
           </div>
         </div>
       </div>
-      <div class="admin">
-        <h3>Contacts actuels</h3>
-        <table class="mini-table" id="cbTable"><thead><tr><th>Nom</th><th>Société</th><th>Email</th><th>Statut</th></tr></thead><tbody></tbody></table>
-      </div>
     </div>
   `;
 }
@@ -346,11 +297,10 @@ async function refreshCrmBasiqueTable(){
   if (!tbody) return;
   tbody.innerHTML = contacts.slice(-15).reverse().map(c => `
     <tr><td>${esc(c.nom)}</td><td>${esc(c.societe||'—')}</td><td>${esc(c.email||'—')}</td>
-    <td><span class="badge-statut" style="background:${tones[c.statut]||'var(--text-muted)'}">${labels[c.statut]||c.statut}</span></td></tr>`).join('');
+    <td><span class="badge-statut" style="background:${tones[c.statut]||'var(--text-muted)'}">${esc(labels[c.statut]||c.statut)}</span></td></tr>`).join('');
 }
 
 function wireCrmBasiqueAdmin(){
-  refreshCrmBasiqueTable();
   const addBtn = document.getElementById('cbAddBtn');
   if (addBtn) addBtn.addEventListener('click', async () => {
     const body = {
@@ -366,12 +316,12 @@ function wireCrmBasiqueAdmin(){
     const data = await res.json();
     if (data.error) { resultEl.textContent = data.error; return; }
     resultEl.textContent = 'Contact ajouté : ' + data.nom;
+    window.contactNotice = resultEl.textContent;
     document.getElementById('cbNom').value = '';
     document.getElementById('cbSociete').value = '';
     document.getElementById('cbEmail').value = '';
     document.getElementById('cbTelephone').value = '';
-    refreshCrmBasiqueTable();
-    load(); // rafraîchit aussi le briefing/funnel avec le nouveau contact
+    load(true); // rafraîchit aussi le briefing/funnel avec le nouveau contact
   });
 
   const fileInput = document.getElementById('cbFile');
@@ -390,8 +340,8 @@ function wireCrmBasiqueAdmin(){
       const data = await res.json();
       if (data.error) { resultEl.textContent = 'Erreur : ' + data.error; return; }
       resultEl.textContent = `${data.imported} contact(s) importé(s) sur ${data.totalRows} ligne(s) (colonnes détectées : ${Object.keys(data.mapping).join(', ') || 'aucune'}).`;
-      refreshCrmBasiqueTable();
-      load();
+      window.contactNotice = resultEl.textContent;
+      load(true);
     };
     reader.readAsDataURL(file);
   });
@@ -426,8 +376,8 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
 });
 
-document.querySelector('.source-pill[data-source="hubspot"]').classList.add('active');
-load();
 </script>
+<script src="/copilot-ui.js" defer></script>
+<script src="/app.js" defer></script>
 </body>
 </html>
