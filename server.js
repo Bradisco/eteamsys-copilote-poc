@@ -589,7 +589,7 @@ app.post('/api/copilot/recharge', (req, res) => {
 });
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-app.get('/', (req, res, next) => {
+app.get(['/', '/index.html'], (req, res, next) => {
   if (req.query.clientId) return next();
   return res.set('Cache-Control', 'no-store').sendFile(path.join(__dirname, 'public', 'admin.html'));
 });

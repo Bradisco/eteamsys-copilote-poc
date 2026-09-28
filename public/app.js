@@ -172,8 +172,7 @@ async function load(forceOverview = false) {
 }
 async function start() {
   if (!clientId) {
-    document.getElementById('copilotPanel').innerHTML = '<p class="copilot-subtitle">Sélectionnez un profil pour utiliser le copilote.</p>';
-    showMessage('Aucun profil sélectionné', 'Créez ou sélectionnez un profil de démonstration dans le backoffice.', true);
+    location.replace('/admin');
     return;
   }
   try {
