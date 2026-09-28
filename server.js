@@ -589,6 +589,10 @@ app.post('/api/copilot/recharge', (req, res) => {
 });
 
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+app.get('/', (req, res, next) => {
+  if (req.query.clientId) return next();
+  return res.redirect('/admin');
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.listen(PORT, () => {
