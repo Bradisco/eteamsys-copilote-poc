@@ -5,15 +5,15 @@ const { createDirectory } = require('../lib/crm-directory');
 test('la dernière page Odoo exactement pleine ne propose pas de page vide', async () => {
   let requestedLimit;
   const directory = createDirectory({
-    hubspotConfigured: false, odooConfigured: true,
     hsList: async () => ({ results: [] }),
-    odooExecuteKw: async (model, method, args, options) => {
+    odooExecuteKw: async (credentials, model, method, args, options) => {
       requestedLimit = options.limit;
       return [{ id: 1, name: 'A' }, { id: 2, name: 'B' }];
     },
     loadCrmBasique: () => ({ contacts: [] }),
   });
-  const page = await directory.contacts('odoo', '', 2);
+  const page = await directory.contacts('odoo', '', 2,
+    { odooUrl: 'https://odoo.example.com', odooDb: 'a', odooUsername: 'b', odooPassword: 'c' });
   assert.equal(requestedLimit, 3);
   assert.equal(page.items.length, 2);
   assert.equal(page.nextCursor, null);
@@ -21,7 +21,6 @@ test('la dernière page Odoo exactement pleine ne propose pas de page vide', asy
 
 function directory(overrides = {}) {
   return createDirectory({
-    hubspotConfigured: false, odooConfigured: false,
     hsList: async () => { throw new Error('Appel non attendu'); },
     odooExecuteKw: async () => [],
     loadCrmBasique: () => ({ contacts: [
@@ -47,8 +46,8 @@ test('sources non configurées clairement fictives', async () => {
   }
 });
 test('connecteur configuré en échec sans remplacement silencieux', async () => {
-  const failing = directory({ hubspotConfigured: true, hsList: async () => { throw new Error('HubSpot 403'); } });
-  await assert.rejects(failing.contacts('hubspot', '', 50), /HubSpot 403/);
+  const failing = directory({ hsList: async () => { throw new Error('HubSpot 403'); } });
+  await assert.rejects(failing.contacts('hubspot', '', 50, { hubspotToken: 'fake-token' }), /HubSpot 403/);
 });
 test('curseurs invalides rejetés', async () => {
   await assert.rejects(directory().companies('crm-basique', '-1', 50), { status: 400 });

@@ -38,11 +38,12 @@ par réponse réussie; la recharge est une simulation, sans paiement.
    Pages de destination et Tableaux de bord. Les autres entrées
    sont des aperçus ou désactivées selon les réglages du profil.
 
-Les profils et crédits sont stockés dans `data/clients.json`, créé à la
+Les profils, crédits et identifiants CRM sont stockés dans `data/clients.json`, créé à la
 première sauvegarde et ignoré par Git. La suppression d'un profil efface
 sa configuration et son historique de crédits, pas les contacts partagés.
 Les anciennes lectures `/api/overview?source=hubspot|odoo|crm-basique`
-restent utilisables; les nouvelles routes du copilote exigent `clientId`.
+restent utilisables en mode démo pour les sources externes : aucun compte
+client LIVE n'est choisi sans `clientId`. Les routes du copilote exigent `clientId`.
 
 ### Comment importer sans GitHub
 
@@ -60,21 +61,32 @@ du dossier (`server.js`, `package.json`, `public/`, `data/`,
    une application privée avec les scopes en lecture seule :
    `crm.objects.contacts.read`, `crm.objects.deals.read`,
    `crm.objects.companies.read`.
-2. **Ne jamais coller ce token dans un chat.** Dans Replit : onglet
-   "Secrets" → nouvelle variable `HUBSPOT_TOKEN` → coller le token là.
-3. Relancer le Repl. Le badge de source passe en "LIVE" si l'API répond.
-   Sans token, le tableau de bord HubSpot affiche l'instantané daté du
+2. **Ne jamais coller ce token dans un chat.** Dans le backoffice interne,
+   modifier le profil HubSpot concerné et renseigner le champ « Jeton HubSpot ».
+   Les champs d'identifiants restent vides à la réouverture et l'API admin
+   ne renvoie que leur état configuré. Un champ vide conserve le jeton existant.
+3. Le badge de source passe en "LIVE" pour ce profil si l'API répond.
+   Sans jeton sur ce profil, le tableau de bord HubSpot affiche l'instantané daté du
    18/09/2026, mais **les listes Contacts/Entreprises utilisent des
    exemples fictifs** signalés DÉMO, et non des contacts tirés de cet
    instantané.
 
 ### Odoo
 
-1. Dans Replit "Secrets", ajouter `ODOO_URL` (ex.
-   `https://monclient.odoo.com`), `ODOO_DB` (nom de la base), et un
-   couple `ODOO_USERNAME` / `ODOO_PASSWORD` (idéalement un utilisateur
-   dédié en lecture seule si votre configuration Odoo le permet).
-2. Relancer le Repl.
+1. Dans le backoffice interne, renseigner pour chaque profil Odoo son
+   URL HTTPS (ex. `https://monclient.odoo.com`), sa base, son utilisateur et
+   son mot de passe (idéalement un utilisateur dédié en lecture seule).
+2. Si un identifiant manque, seul ce profil reste en démo. Une erreur
+   de connexion LIVE est remontée sans remplacer les données par des exemples.
+
+**Attention :** les identifiants sont conservés en clair dans le fichier
+local `data/clients.json` (hors Git), qui doit rester privé. Le backoffice
+et les routes du POC ne sont pas authentifiés : ne publiez pas ce POC avec
+des données clients réelles. L'ancien secret `HUBSPOT_TOKEN` est utilisé
+uniquement pour la migration ponctuelle vers le profil eTeamsys ; retirez-le
+des Secrets Replit après avoir vérifié cette migration.
+L'erreur de limitation de débit HubSpot `429` constatée avec le compte
+eTeamsys n'est pas corrigée par l'isolation des identifiants.
 
 **Important, honnêteté de scope** : ce connecteur Odoo suit les
 conventions standards de l'API externe Odoo (JSON-RPC sur

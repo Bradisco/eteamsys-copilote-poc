@@ -19,7 +19,7 @@ async function freePort() {
   return port;
 }
 
-async function startServer(t) {
+async function startServer(t, { mockHubspot = false, mockOdoo = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eteamsys-phase2-'));
   fs.mkdirSync(path.join(dir, 'data'));
   fs.copyFileSync(path.join(root, 'server.js'), path.join(dir, 'server.js'));
@@ -33,8 +33,40 @@ async function startServer(t) {
   const disabled = store.create({ nom: 'CRM désactivé', modules: { transactions: 'non-applicable', emailsMarketing: 'non-applicable', pagesDestination: 'non-applicable' } });
   const hubspot = store.create({ nom: 'HubSpot aperçu', crmExistant: 'hubspot' });
   const odoo = store.create({ nom: 'Odoo aperçu', crmExistant: 'odoo' });
+  const mockPath = path.join(dir, 'mock-hubspot.js');
+  if (mockHubspot || mockOdoo) fs.writeFileSync(mockPath, `
+    const originalFetch = global.fetch;
+    global.fetch = async function(url, options = {}) {
+      if (${mockHubspot} && String(url).startsWith('https://api.hubapi.com/')) {
+        const auth = options.headers && (options.headers.Authorization || options.headers.authorization);
+        const n = auth === 'Bearer fake-A' ? 11 : auth === 'Bearer fake-B' ? 22 : 0;
+        if (!n) return { ok: false, status: 401 };
+        if (String(url).includes('/search')) return { ok: true,
+          json: async () => ({ total: n, results: [], paging: null }) };
+        return { ok: true, json: async () => ({ results: [
+          { id: String(n), properties: { firstname: 'Compte', lastname: String(n), email: 'test@example.com' } }
+        ] }) };
+      }
+      if (${mockOdoo} && String(url).endsWith('/jsonrpc')) {
+        const params = JSON.parse(options.body).params;
+        const n = String(url).includes('tenant-a.example.net') ? 31 : 42;
+        const expectedPassword = n === 31 ? 'fake-OA' : 'fake-OB';
+        const password = params.service === 'common' ? params.args[2] : params.args[2];
+        if (password !== expectedPassword) return { json: async () => ({ error: { code: 401 } }) };
+        const method = params.args[4];
+        let result = n;
+        if (params.service === 'object' && method === 'read_group') result = [
+          { stage_id: [n, 'Étape exemple'], stage_id_count: n }
+        ];
+        if (params.service === 'object' && method === 'search_read') result =
+          params.args[3] === 'res.partner' ? [{ id: n, name: 'Compte ' + n }] : [];
+        return { json: async () => ({ result }) };
+      }
+      return originalFetch(url, options);
+    };
+  `);
   const port = await freePort();
-  const child = spawn(process.execPath, [path.join(dir, 'server.js')], {
+  const child = spawn(process.execPath, [...(mockHubspot || mockOdoo ? ['--require', mockPath] : []), path.join(dir, 'server.js')], {
     env: {
       ...process.env, PORT: String(port), ANTHROPIC_API_KEY: '', HUBSPOT_TOKEN: '',
       ODOO_URL: '', ODOO_DB: '', ODOO_USERNAME: '', ODOO_PASSWORD: '',
@@ -60,7 +92,7 @@ async function startServer(t) {
   }
   assert.ok(ready, `Le serveur isolé doit démarrer : ${stderr}`);
   return {
-    base, active, demo, disabled, hubspot, odoo, file,
+    base, active, demo, disabled, hubspot, odoo, file, store,
     readCrm: () => JSON.parse(fs.readFileSync(file, 'utf8')),
     updateCrm: (data) => fs.writeFileSync(file, JSON.stringify(data)),
   };

@@ -39,3 +39,30 @@ test('CRUD administratif HTTP avec validation', async (t) => {
   assert.equal((await fetch(`${base}/${client.id}`, { method: 'DELETE' })).status, 200);
   assert.equal((await (await fetch(base)).json()).length, 0);
 });
+
+test('aucun retour admin ne dévoile les identifiants', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eteamsys-secrets-http-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const app = express();
+  app.use(express.json());
+  registerAdminRoutes(app, createClientStore(path.join(dir, 'clients.json')));
+  const server = app.listen(0);
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${server.address().port}/api/admin/clients`;
+  const options = { headers: { 'Content-Type': 'application/json' } };
+  const posted = await fetch(base, { ...options, method: 'POST', body: JSON.stringify({
+    nom: 'Exemple', crmExistant: 'hubspot', credentials: { hubspotToken: 'fake-secret' },
+  }) });
+  const response = await posted.json();
+  assert.equal(response.credentialsConfigured, true);
+  assert.equal(response.credentialStatus.hubspotToken, true);
+  assert.equal(JSON.stringify(response).includes('fake-secret'), false);
+  const listed = await (await fetch(base)).text();
+  assert.equal(listed.includes('fake-secret'), false);
+  const updated = await (await fetch(`${base}/${response.id}`, { ...options, method: 'PUT',
+    body: JSON.stringify({ nom: 'Exemple renommé' }),
+  })).text();
+  assert.equal(updated.includes('fake-secret'), false);
+  const cleared = await (await fetch(`${base}/${response.id}/credentials`, { method: 'DELETE' })).json();
+  assert.equal(cleared.credentialsConfigured, false);
+});

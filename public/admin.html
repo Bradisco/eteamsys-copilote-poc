@@ -24,15 +24,15 @@
       <div class="section-head"><h2>Profils disponibles</h2><span id="count" class="count"></span></div>
       <div class="table-wrap">
         <table id="clientsTable">
-          <thead><tr><th scope="col">Client</th><th scope="col">Secteur</th><th scope="col">CRM</th><th scope="col">Statut</th><th scope="col">Crédits</th><th scope="col">Actions</th></tr></thead>
+          <thead><tr><th scope="col">Client</th><th scope="col">Secteur</th><th scope="col">CRM</th><th scope="col">Accès CRM</th><th scope="col">Statut</th><th scope="col">Crédits</th><th scope="col">Actions</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
       <p id="emptyState" class="empty">Aucun profil pour le moment. Créez-en un ci-dessous pour commencer.</p>
     </section>
     <section class="panel editor">
-      <div class="section-head"><h2 id="formTitle">Créer un profil</h2><span class="hint">Les contacts d'un même CRM sont partagés entre profils.</span></div>
-      <form id="clientForm">
+      <div class="section-head"><h2 id="formTitle">Créer un profil</h2><span class="hint">Seul le CRM basique partage ses contacts entre profils.</span></div>
+      <form id="clientForm" autocomplete="off">
         <div class="form-grid">
           <label>Nom du client <input id="nom" name="nom" maxlength="160" required placeholder="Ex. Atelier fictif"></label>
           <label>Secteur d'activité <select id="secteur" name="secteur"></select></label>
@@ -47,6 +47,37 @@
           <label>Consultant référent <input id="consultantReferent" name="consultantReferent" maxlength="160" placeholder="Facultatif"></label>
           <label>Solde de crédits <input id="solde" name="solde" type="number" min="0" step="1" value="20" required></label>
         </div>
+        <section id="credentialsSection" class="credentials" aria-labelledby="credentialsHeading">
+          <h3 id="credentialsHeading">Identifiants du CRM</h3>
+          <p class="hint">Les identifiants enregistrés ne sont jamais affichés. Laissez les champs vides pour conserver les valeurs existantes ; seuls les nouveaux champs saisis seront envoyés.</p>
+          <div id="hubspotCredentials" class="credential-fields" data-credential-crm="hubspot" hidden>
+            <label for="hubspotToken">Jeton privé HubSpot
+              <input id="hubspotToken" name="hubspotToken" type="password" autocomplete="new-password" maxlength="4096">
+            </label>
+            <span id="hubspotTokenStatus" class="credential-field-status" aria-live="polite"></span>
+          </div>
+          <div id="odooCredentials" class="credential-fields" data-credential-crm="odoo" hidden>
+            <label for="odooUrl">URL Odoo
+              <input id="odooUrl" name="odooUrl" type="url" autocomplete="off" maxlength="2048" placeholder="https://odoo.example.com">
+            </label>
+            <span id="odooUrlStatus" class="credential-field-status" aria-live="polite"></span>
+            <label for="odooDb">Base de données
+              <input id="odooDb" name="odooDb" type="text" autocomplete="off" maxlength="255">
+            </label>
+            <span id="odooDbStatus" class="credential-field-status" aria-live="polite"></span>
+            <label for="odooUsername">Nom d'utilisateur
+              <input id="odooUsername" name="odooUsername" type="text" autocomplete="off" maxlength="255">
+            </label>
+            <span id="odooUsernameStatus" class="credential-field-status" aria-live="polite"></span>
+            <label for="odooPassword">Mot de passe Odoo
+              <input id="odooPassword" name="odooPassword" type="password" autocomplete="new-password" maxlength="4096">
+            </label>
+            <span id="odooPasswordStatus" class="credential-field-status" aria-live="polite"></span>
+          </div>
+          <p id="credentialsConfiguredBadge" class="credential-badge" aria-live="polite"></p>
+          <p id="crmChangeNotice" class="crm-change-notice" role="status" hidden></p>
+          <button id="removeCredentials" class="button danger" type="button" hidden>Retirer les identifiants enregistrés</button>
+        </section>
         <fieldset><legend>État des modules</legend><div class="module-grid" id="moduleFields"></div></fieldset>
         <div id="historySection" class="history" hidden>
           <h3>Historique des crédits</h3><p id="createdAt" class="hint"></p><ul id="historyList"></ul>

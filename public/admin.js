@@ -14,9 +14,19 @@ const MODULES = [
   ['pagesDestination', 'Pages de destination'], ['pagesSiteWeb', 'Pages de site web'],
   ['tableauxDeBord', 'Tableaux de bord'],
 ];
+const CREDENTIALS = {
+  hubspot: [['hubspotToken', 'Jeton HubSpot']],
+  odoo: [
+    ['odooUrl', 'URL Odoo'], ['odooDb', 'Base de données'],
+    ['odooUsername', "Nom d'utilisateur"], ['odooPassword', 'Mot de passe Odoo'],
+  ],
+};
 let clients = [];
 let editingId = null;
 let editingCreditBalance = 20;
+let editingOriginalCrm = null;
+let editingCredentialStatus = {};
+let editingCredentialsConfigured = false;
 const $ = (id) => document.getElementById(id);
 
 function showError(id, message) {
@@ -52,6 +62,9 @@ function setupFields() {
 function resetForm() {
   editingId = null;
   editingCreditBalance = 20;
+  editingOriginalCrm = null;
+  editingCredentialStatus = {};
+  editingCredentialsConfigured = false;
   $('clientForm').reset();
   $('secteur').value = SECTORS.at(-1);
   $('solde').value = '20';
@@ -59,6 +72,8 @@ function resetForm() {
   $('saveButton').textContent = 'Créer le profil';
   $('cancelEdit').hidden = true;
   $('historySection').hidden = true;
+  clearCredentialInputs();
+  updateCredentialFields();
   showError('formError', '');
   document.querySelectorAll('[data-module]').forEach((select) => {
     select.value = ['contacts', 'entreprises'].includes(select.dataset.module) ? 'actif' : 'demo';
@@ -67,9 +82,14 @@ function resetForm() {
 function editClient(client) {
   editingId = client.id;
   editingCreditBalance = client.credits.solde;
+  editingOriginalCrm = client.crmExistant;
+  editingCredentialStatus = client.credentialStatus || {};
+  editingCredentialsConfigured = client.credentialsConfigured === true;
   for (const field of ['nom', 'secteur', 'crmExistant', 'statut', 'consultantReferent']) {
     $(field).value = client[field] || '';
   }
+  clearCredentialInputs();
+  updateCredentialFields();
   $('solde').value = String(client.credits.solde);
   document.querySelectorAll('[data-module]').forEach((select) => {
     select.value = client.modules[select.dataset.module];
@@ -109,7 +129,24 @@ function renderClients() {
   $('emptyState').hidden = clients.length > 0;
   for (const client of clients) {
     const row = document.createElement('tr');
-    for (const text of [client.nom, client.secteur, client.crmExistant === 'aucun' ? 'CRM basique' : client.crmExistant, client.statut, String(client.credits.solde)]) {
+    for (const text of [client.nom, client.secteur, client.crmExistant === 'aucun' ? 'CRM basique' : client.crmExistant]) {
+      const cell = document.createElement('td');
+      cell.textContent = text;
+      row.append(cell);
+    }
+    const credentialCell = document.createElement('td');
+    const credentialBadge = document.createElement('span');
+    if (client.crmExistant === 'aucun') {
+      credentialBadge.className = 'credential-badge neutral';
+      credentialBadge.textContent = 'CRM basique';
+    } else {
+      const configured = client.credentialsConfigured === true;
+      credentialBadge.className = `credential-badge ${configured ? 'configured' : 'not-configured'}`;
+      credentialBadge.textContent = configured ? 'Accès configuré' : 'Démo · accès incomplet';
+    }
+    credentialCell.append(credentialBadge);
+    row.append(credentialCell);
+    for (const text of [client.statut, String(client.credits.solde)]) {
       const cell = document.createElement('td');
       cell.textContent = text;
       row.append(cell);
@@ -145,6 +182,12 @@ function formData() {
     statut: $('statut').value, consultantReferent: $('consultantReferent').value,
     modules,
   };
+  const credentials = {};
+  for (const [key] of (CREDENTIALS[$('crmExistant').value] || [])) {
+    const value = $(key).value.trim();
+    if (value) credentials[key] = value;
+  }
+  if (Object.keys(credentials).length) payload.credentials = credentials;
   const requestedBalance = Number($('solde').value);
   if (!editingId) payload.credits = { solde: requestedBalance };
   else if (requestedBalance !== editingCreditBalance) {
@@ -152,6 +195,82 @@ function formData() {
   }
   return payload;
 }
+
+function clearCredentialInputs() {
+  for (const [key] of Object.values(CREDENTIALS).flat()) {
+    $(key).value = '';
+  }
+}
+
+function updateCredentialFields() {
+  const crm = $('crmExistant').value;
+  document.querySelectorAll('[data-credential-crm]').forEach((group) => {
+    const active = group.dataset.credentialCrm === crm;
+    group.hidden = !active;
+    group.querySelectorAll('input').forEach((input) => {
+      input.disabled = !active;
+      if (!active) input.value = '';
+    });
+  });
+
+  for (const [key, label] of Object.values(CREDENTIALS).flat()) {
+    const status = editingCredentialStatus[key] === true;
+    const statusElement = $(`${key}Status`);
+    statusElement.textContent = status ? `${label} enregistré` : 'Non configuré';
+    statusElement.className = `credential-field-status ${status ? 'configured' : 'not-configured'}`;
+  }
+
+  const configured = editingCredentialsConfigured && editingOriginalCrm === crm;
+  const badge = $('credentialsConfiguredBadge');
+  if (crm === 'aucun') {
+    badge.textContent = 'Aucun identifiant externe requis — CRM basique partagé.';
+    badge.className = 'credential-badge neutral';
+  } else {
+    const hasStatus = CREDENTIALS[crm].some(([key]) => editingCredentialStatus[key] === true);
+    const complete = configured;
+    badge.textContent = complete
+      ? 'Identifiants configurés · données en mode LIVE si le service répond.'
+      : hasStatus ? 'Configuration partielle · les données restent en mode démo.' : 'Identifiants non configurés · données en mode démo.';
+    badge.className = `credential-badge ${complete ? 'configured' : 'not-configured'}`;
+  }
+
+  const changed = editingId && editingOriginalCrm !== crm;
+  $('crmChangeNotice').hidden = !changed;
+  if (changed) {
+    const oldCrmLabel = editingOriginalCrm === 'hubspot' ? 'HubSpot' : editingOriginalCrm === 'odoo' ? 'Odoo' : null;
+    $('crmChangeNotice').textContent = `${oldCrmLabel ? `En enregistrant, les identifiants ${oldCrmLabel} enregistrés seront effacés. ` : ''}Seuls les contacts du CRM basique sont partagés entre profils. Les identifiants du CRM sélectionné ne sont pas préremplis : saisissez seulement les nouveaux identifiants à configurer.`;
+  } else {
+    $('crmChangeNotice').textContent = '';
+  }
+  const canRemove = editingId && Object.values(editingCredentialStatus).some((value) => value === true);
+  $('removeCredentials').hidden = !canRemove;
+  $('credentialsSection').hidden = false;
+}
+
+$('crmExistant').addEventListener('change', () => {
+  clearCredentialInputs();
+  updateCredentialFields();
+});
+
+$('removeCredentials').addEventListener('click', async () => {
+  if (!editingId || !Object.values(editingCredentialStatus).some((value) => value === true)) return;
+  if (!confirm('Retirer définitivement les identifiants CRM enregistrés pour ce profil ? Cette action ne modifie pas les autres données du profil.')) return;
+  const button = $('removeCredentials');
+  button.disabled = true;
+  try {
+    await api(`/api/admin/clients/${encodeURIComponent(editingId)}/credentials`, { method: 'DELETE' });
+    await loadClients();
+    const updatedClient = clients.find((client) => client.id === editingId);
+    editingCredentialStatus = updatedClient?.credentialStatus || {};
+    editingCredentialsConfigured = updatedClient?.credentialsConfigured === true;
+    updateCredentialFields();
+    clearCredentialInputs();
+  } catch (error) {
+    showError('formError', error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
 $('clientForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!$('clientForm').reportValidity()) return;

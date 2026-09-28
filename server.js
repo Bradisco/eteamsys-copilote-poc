@@ -8,8 +8,8 @@
  * relances, revenu) fonctionne à l'identique quelle que soit la source
  * du client.
  *
- * Aucun token/mot de passe n'est jamais écrit dans ce fichier : ils sont
- * lus uniquement depuis les variables d'environnement (Replit "Secrets").
+ * Les identifiants CRM sont conservés localement par profil, jamais dans
+ * les réponses publiques. La clé Anthropic reste globale.
  *
  * - HubSpot : lecture réelle testée sur le compte eTeamsys (voir mode
  *   démo basé sur un instantané réel du 18/09/2026).
@@ -27,7 +27,7 @@
 const express = require('express');
 const path = require('path');
 const { randomUUID } = require('node:crypto');
-const { createClientStore, sourceForClient } = require('./lib/client-store');
+const { createClientStore, sourceForClient, credentialsForClient } = require('./lib/client-store');
 const { registerAdminRoutes, resolveClientSource, sendError } = require('./lib/client-routes');
 const { STAGES, summarizeOpportunities } = require('./lib/crm-transactions');
 const { createCrmBasiqueStore } = require('./lib/crm-basique-store');
@@ -45,19 +45,16 @@ const app = express();
 app.use(express.json({ limit: '8mb' })); // large limit: le corps peut contenir un fichier Excel en base64
 
 const PORT = process.env.PORT || 5000;
-const HUBSPOT_TOKEN = process.env.HUBSPOT_TOKEN || '';
 const HS_BASE = 'https://api.hubapi.com';
-
-const ODOO_URL = process.env.ODOO_URL || '';
-const ODOO_DB = process.env.ODOO_DB || '';
-const ODOO_USERNAME = process.env.ODOO_USERNAME || '';
-const ODOO_PASSWORD = process.env.ODOO_PASSWORD || '';
-const ODOO_CONFIGURED = !!(ODOO_URL && ODOO_DB && ODOO_USERNAME && ODOO_PASSWORD);
 
 const CRM_BASIQUE_FILE = path.join(__dirname, 'data', 'crm-basique.json');
 const CRM_BASIQUE_SEED_FILE = path.join(__dirname, 'data', 'crm-basique.seed.json');
 const crmStore = createCrmBasiqueStore(CRM_BASIQUE_FILE, CRM_BASIQUE_SEED_FILE);
 const clientStore = createClientStore(path.join(__dirname, 'data', 'clients.json'));
+// L'ancien secret n'est lu ici que pour la migration ponctuelle du profil eTeamsys.
+if (clientStore.migrateEteamsysHubspotCredential(process.env.HUBSPOT_TOKEN)) {
+  console.log('Identifiants HubSpot migrés vers le profil eTeamsys (valeur masquée).');
+}
 registerAdminRoutes(app, clientStore);
 
 function yearRange(year) {
@@ -98,34 +95,34 @@ const HS_LIFECYCLE_STAGES = [
   { id: '205072987', label: 'Ne pas contacter' },
 ];
 
-async function hsSearch(objectType, body) {
+async function hsSearch(token, objectType, body) {
   const res = await fetch(`${HS_BASE}/crm/v3/objects/${objectType}/search`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`HubSpot ${objectType} search ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`HubSpot ${objectType} search ${res.status}`);
   return res.json();
 }
-async function hsList(objectType, properties, cursor, limit) {
+async function hsList(token, objectType, properties, cursor, limit) {
   const url = new URL(`${HS_BASE}/crm/v3/objects/${objectType}`);
   url.searchParams.set('limit', String(limit));
   url.searchParams.set('properties', properties.join(','));
   if (cursor) url.searchParams.set('after', cursor);
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } });
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!response.ok) throw new Error(`HubSpot ${objectType} : HTTP ${response.status}`);
   return response.json();
 }
-async function hsCount(objectType, filterGroups) {
-  const data = await hsSearch(objectType, { filterGroups, limit: 1, properties: [] });
+async function hsCount(token, objectType, filterGroups) {
+  const data = await hsSearch(token, objectType, { filterGroups, limit: 1, properties: [] });
   return data.total || 0;
 }
-async function hsSum(objectType, filterGroups, sumProperty, maxPages = 10) {
+async function hsSum(token, objectType, filterGroups, sumProperty, maxPages = 10) {
   let after, count = 0, sum = 0;
   for (let page = 0; page < maxPages; page += 1) {
     const body = { filterGroups, limit: 100, properties: [sumProperty] };
     if (after) body.after = after;
-    const data = await hsSearch(objectType, body);
+    const data = await hsSearch(token, objectType, body);
     count += data.results.length;
     for (const rec of data.results) {
       const val = parseFloat(rec.properties[sumProperty]);
@@ -165,16 +162,19 @@ const HS_DEMO_SNAPSHOT = {
   enProductionAmount: 1376675,
 };
 
-async function getHubspotOverview() {
-  if (!HUBSPOT_TOKEN) {
+async function getHubspotOverview(credentials = {}, client = null) {
+  const token = credentials.hubspotToken;
+  if (!token) {
     const d = HS_DEMO_SNAPSHOT;
     return {
       source: 'hubspot',
-      sourceLabel: 'HubSpot — compte eTeamsys réel (mode démo)',
+      sourceLabel: 'HubSpot — instantané eTeamsys (mode démo)',
       demoMode: true,
       asOf: d.asOf,
       currency: 'EUR',
-      note: "Instantané réel des données eTeamsys, relevé le 18/09/2026 (avant configuration du token HubSpot sur ce déploiement). Dès le token ajouté dans les Secrets, ces chiffres deviennent live.",
+      note: client?.nom === 'eTeamsys'
+        ? 'Instantané du compte eTeamsys relevé le 18/09/2026. Configurez les identifiants de ce profil pour passer en direct.'
+        : 'Instantané de référence du compte eTeamsys relevé le 18/09/2026 : ce ne sont pas les données du profil sélectionné.',
       lifecycle: d.lifecycle,
       funnel: d.funnel,
       revenueWon: { ...d.revenueWon, periodLabel: '2026' },
@@ -190,34 +190,34 @@ async function getHubspotOverview() {
 
   const { from, to } = yearRange(new Date().getFullYear());
   const lifecycle = await Promise.all(
-    HS_LIFECYCLE_STAGES.map(async (s) => ({ ...s, count: await hsCount('contacts', [{ filters: [{ propertyName: 'lifecyclestage', operator: 'EQ', value: s.id }] }]) }))
+    HS_LIFECYCLE_STAGES.map(async (s) => ({ ...s, count: await hsCount(token, 'contacts', [{ filters: [{ propertyName: 'lifecyclestage', operator: 'EQ', value: s.id }] }]) }))
   );
   const funnel = await Promise.all(
-    HS_DEAL_STAGES.map(async (s) => ({ ...s, count: await hsCount('deals', [{ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: s.id }] }]) }))
+    HS_DEAL_STAGES.map(async (s) => ({ ...s, count: await hsCount(token, 'deals', [{ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: s.id }] }]) }))
   );
-  const enProduction = await hsCount('deals', [{ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: '6fcf07ab-400e-4bc9-987f-9d7476a27aa6' }] }]);
+  const enProduction = await hsCount(token, 'deals', [{ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: '6fcf07ab-400e-4bc9-987f-9d7476a27aa6' }] }]);
 
   const cutoffISO = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
-  const relanceMQL = await hsCount('contacts', [
+  const relanceMQL = await hsCount(token, 'contacts', [
     { filters: [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }, { propertyName: 'notes_last_contacted', operator: 'LT', value: cutoffISO }] },
     { filters: [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }, { propertyName: 'notes_last_contacted', operator: 'NOT_HAS_PROPERTY' }] },
   ]);
-  const relanceSQL = await hsCount('contacts', [
+  const relanceSQL = await hsCount(token, 'contacts', [
     { filters: [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }, { propertyName: 'notes_last_contacted', operator: 'LT', value: cutoffISO }] },
     { filters: [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }, { propertyName: 'notes_last_contacted', operator: 'NOT_HAS_PROPERTY' }] },
   ]);
-  const closedWon = await hsSum('deals', [{ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: 'closedwon' }, { propertyName: 'closedate', operator: 'BETWEEN', value: from, highValue: to }] }], 'amount_in_home_currency');
-  const closedLost = await hsSum('deals', [{ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: 'closedlost' }, { propertyName: 'closedate', operator: 'BETWEEN', value: from, highValue: to }] }], 'amount_in_home_currency');
+  const closedWon = await hsSum(token, 'deals', [{ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: 'closedwon' }, { propertyName: 'closedate', operator: 'BETWEEN', value: from, highValue: to }] }], 'amount_in_home_currency');
+  const closedLost = await hsSum(token, 'deals', [{ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: 'closedlost' }, { propertyName: 'closedate', operator: 'BETWEEN', value: from, highValue: to }] }], 'amount_in_home_currency');
   const staleCutoffISO = new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString();
-  const staleOpenDeals = await hsCount('deals', HS_DEAL_STAGES.map((s) => ({ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: s.id }, { propertyName: 'hs_lastmodifieddate', operator: 'LT', value: staleCutoffISO }] })));
+  const staleOpenDeals = await hsCount(token, 'deals', HS_DEAL_STAGES.map((s) => ({ filters: [{ propertyName: 'pipeline', operator: 'EQ', value: SALES_PIPELINE_ID }, { propertyName: 'dealstage', operator: 'EQ', value: s.id }, { propertyName: 'hs_lastmodifieddate', operator: 'LT', value: staleCutoffISO }] })));
 
   return {
     source: 'hubspot',
-    sourceLabel: 'HubSpot — compte eTeamsys réel (live)',
+    sourceLabel: 'HubSpot — compte du profil sélectionné (live)',
     demoMode: false,
     asOf: todayISO(),
     currency: 'EUR',
-    note: 'Données live, interrogées directement sur le portail HubSpot eTeamsys.',
+    note: 'Données live du compte HubSpot lié à ce profil.',
     lifecycle,
     funnel,
     revenueWon: { count: closedWon.count, amount: closedWon.sum, periodLabel: String(new Date().getFullYear()) },
@@ -234,22 +234,23 @@ async function getHubspotOverview() {
 // =============================================================================
 // 2) SOURCE ODOO — connecteur JSON-RPC, NON TESTÉ sur un compte réel
 // =============================================================================
-async function odooCall(service, method, args) {
-  const res = await fetch(`${ODOO_URL.replace(/\/$/, '')}/jsonrpc`, {
+async function odooCall(credentials, service, method, args) {
+  const res = await fetch(`${credentials.odooUrl.replace(/\/$/, '')}/jsonrpc`, {
     method: 'POST',
+    redirect: 'error',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service, method, args }, id: Math.floor(Math.random() * 1e9) }),
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.data ? data.error.data.message : JSON.stringify(data.error));
+  if (data.error) throw new Error('Odoo : appel JSON-RPC refusé.');
   return data.result;
 }
-async function odooLogin() {
-  return odooCall('common', 'login', [ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD]);
+async function odooLogin(credentials) {
+  return odooCall(credentials, 'common', 'login', [credentials.odooDb, credentials.odooUsername, credentials.odooPassword]);
 }
-async function odooExecuteKw(model, method, args, kwargs = {}) {
-  const uid = await odooLogin();
-  return odooCall('object', 'execute_kw', [ODOO_DB, uid, ODOO_PASSWORD, model, method, args, kwargs]);
+async function odooExecuteKw(credentials, model, method, args, kwargs = {}) {
+  const uid = await odooLogin(credentials);
+  return odooCall(credentials, 'object', 'execute_kw', [credentials.odooDb, uid, credentials.odooPassword, model, method, args, kwargs]);
 }
 
 const ODOO_DEMO = {
@@ -270,8 +271,8 @@ const ODOO_DEMO = {
   staleOpenOpps: 5,
 };
 
-async function getOdooOverview() {
-  if (!ODOO_CONFIGURED) {
+async function getOdooOverview(credentials = {}) {
+  if (!['odooUrl', 'odooDb', 'odooUsername', 'odooPassword'].every((key) => credentials[key])) {
     const d = ODOO_DEMO;
     return {
       source: 'odoo',
@@ -279,7 +280,7 @@ async function getOdooOverview() {
       demoMode: true,
       asOf: todayISO(),
       currency: 'EUR',
-      note: "Exemple illustratif : aucun compte Odoo n'a été connecté dans cette session (pas de compte de test disponible). Ce ne sont PAS des données réelles — configurez ODOO_URL / ODOO_DB / ODOO_USERNAME / ODOO_PASSWORD pour passer en direct.",
+      note: "Exemple illustratif : aucun compte Odoo n'est configuré pour ce profil. Ce ne sont pas des données réelles. Configurez les accès Odoo dans le backoffice pour passer en direct.",
       lifecycle: d.lifecycle,
       funnel: d.funnel,
       revenueWon: { ...d.revenueWon, periodLabel: String(new Date().getFullYear()) },
@@ -294,7 +295,7 @@ async function getOdooOverview() {
   }
 
   try {
-    const stageGroups = await odooExecuteKw('crm.lead', 'read_group', [[['type', '=', 'opportunity'], ['active', '=', true]], ['stage_id'], ['stage_id']]);
+    const stageGroups = await odooExecuteKw(credentials, 'crm.lead', 'read_group', [[['type', '=', 'opportunity'], ['active', '=', true]], ['stage_id'], ['stage_id']]);
     const funnel = (stageGroups || []).map((g) => ({
       id: String(g.stage_id ? g.stage_id[0] : 'inconnu'),
       label: g.stage_id ? g.stage_id[1] : 'Étape inconnue',
@@ -302,20 +303,20 @@ async function getOdooOverview() {
       count: g.stage_id_count || g.__count || 0,
     }));
 
-    const leadCount = await odooExecuteKw('crm.lead', 'search_count', [[['type', '=', 'lead'], ['active', '=', true]]]);
-    const oppCount = await odooExecuteKw('crm.lead', 'search_count', [[['type', '=', 'opportunity'], ['active', '=', true]]]);
-    const clientCount = await odooExecuteKw('res.partner', 'search_count', [[['customer_rank', '>', 0]]]);
+    const leadCount = await odooExecuteKw(credentials, 'crm.lead', 'search_count', [[['type', '=', 'lead'], ['active', '=', true]]]);
+    const oppCount = await odooExecuteKw(credentials, 'crm.lead', 'search_count', [[['type', '=', 'opportunity'], ['active', '=', true]]]);
+    const clientCount = await odooExecuteKw(credentials, 'res.partner', 'search_count', [[['customer_rank', '>', 0]]]);
 
     const coldLeadDate = daysAgoISO(7);
-    const coldLeads = await odooExecuteKw('crm.lead', 'search_count', [[['type', '=', 'lead'], ['active', '=', true], ['write_date', '<', coldLeadDate]]]);
-    const noNextActivity = await odooExecuteKw('crm.lead', 'search_count', [[['type', '=', 'opportunity'], ['active', '=', true], ['activity_ids', '=', false]]]);
+    const coldLeads = await odooExecuteKw(credentials, 'crm.lead', 'search_count', [[['type', '=', 'lead'], ['active', '=', true], ['write_date', '<', coldLeadDate]]]);
+    const noNextActivity = await odooExecuteKw(credentials, 'crm.lead', 'search_count', [[['type', '=', 'opportunity'], ['active', '=', true], ['activity_ids', '=', false]]]);
     const staleCutoff = daysAgoISO(90);
-    const staleOpenOpps = await odooExecuteKw('crm.lead', 'search_count', [[['type', '=', 'opportunity'], ['active', '=', true], ['write_date', '<', staleCutoff]]]);
+    const staleOpenOpps = await odooExecuteKw(credentials, 'crm.lead', 'search_count', [[['type', '=', 'opportunity'], ['active', '=', true], ['write_date', '<', staleCutoff]]]);
 
     const { from, to } = yearRange(new Date().getFullYear());
     let wonCount = 0, wonAmount = 0;
     try {
-      const wonRecords = await odooExecuteKw('crm.lead', 'search_read', [[['type', '=', 'opportunity'], ['stage_id.is_won', '=', true], ['date_closed', '>=', from], ['date_closed', '<=', to]], ['expected_revenue']]);
+      const wonRecords = await odooExecuteKw(credentials, 'crm.lead', 'search_read', [[['type', '=', 'opportunity'], ['stage_id.is_won', '=', true], ['date_closed', '>=', from], ['date_closed', '<=', to]], ['expected_revenue']]);
       wonCount = wonRecords.length;
       wonAmount = wonRecords.reduce((a, r) => a + (parseFloat(r.expected_revenue) || 0), 0);
     } catch (e) {
@@ -505,18 +506,15 @@ function buildBriefing(p) {
 // =============================================================================
 // API de démonstration par profil
 // =============================================================================
-const directory = createDirectory({
-  hubspotConfigured: !!HUBSPOT_TOKEN, odooConfigured: ODOO_CONFIGURED,
-  hsList, odooExecuteKw, loadCrmBasique,
-});
+const directory = createDirectory({ hsList, odooExecuteKw, loadCrmBasique });
 
-async function getOverviewForSource(source) {
+async function getOverviewForSource(source, client = null) {
   const readers = {
     hubspot: getHubspotOverview,
     odoo: getOdooOverview,
     'crm-basique': getCrmBasiqueOverview,
   };
-  const payload = await readers[source]();
+  const payload = await readers[source](client ? credentialsForClient(client) : {}, client);
   payload.briefing = buildBriefing(payload);
   payload.suggestions = buildSuggestions(payload);
   return payload;
@@ -525,7 +523,7 @@ async function getOverviewForSource(source) {
 app.get('/api/overview', async (req, res) => {
   try {
     const { client, source } = resolveClientSource(req.query, clientStore);
-    const overview = await getOverviewForSource(source);
+    const overview = await getOverviewForSource(source, client);
     if (client) overview.sectorTemplate = templateForSector(client.secteur);
     res.json(overview);
   } catch (err) {
@@ -579,7 +577,7 @@ app.get('/api/transactions', async (req, res) => {
         canEdit: client.modules.transactions === 'actif',
       });
     }
-    const overview = await getOverviewForSource(source);
+    const overview = await getOverviewForSource(source, client);
     return res.json({
       source, demoMode: overview.demoMode, asOf: overview.asOf, currency: overview.currency,
       note: `${overview.note} Transactions externes en lecture seule : montants par stade et liste individuelle indisponibles.`,
@@ -642,7 +640,7 @@ app.get('/api/email-reminders', async (req, res) => {
         note: 'Dernier contact connu : dernière relance enregistrée. Aucun historique complet des échanges ni envoi d’e-mail.',
       });
     }
-    const overview = await getOverviewForSource(source);
+    const overview = await getOverviewForSource(source, client);
     return res.json({
       source, demoMode: overview.demoMode, asOf: overview.asOf, items: [],
       counters: overview.relanceItems,
@@ -671,10 +669,10 @@ app.get('/api/landing-pages', (req, res) => {
 for (const [route, method] of [['/api/contacts', 'contacts'], ['/api/companies', 'companies']]) {
   app.get(route, async (req, res) => {
     try {
-      const { source } = resolveClientSource(req.query, clientStore);
+      const { source, client } = resolveClientSource(req.query, clientStore);
       const limit = req.query.limit === undefined ? 50 : Number(req.query.limit);
       const cursor = req.query.cursor || '';
-      res.json({ source, ...await directory[method](source, cursor, limit) });
+      res.json({ source, ...await directory[method](source, cursor, limit, client ? credentialsForClient(client) : {}) });
     } catch (err) {
       console.error(err);
       sendError(res, err);
@@ -701,11 +699,11 @@ app.post('/api/copilot/ask', async (req, res) => {
       return res.status(409).json({ error: 'Crédits épuisés.', credits: client.credits, demoMode: true });
     }
     const source = sourceForClient(client);
-    const overview = await getOverviewForSource(source);
+    const overview = await getOverviewForSource(source, client);
     let answer;
     let demoMode = true;
     if (anthropicCopilot.isConfigured()) {
-      const contactsApercu = (await directory.contacts(source, '', 20)).items;
+      const contactsApercu = (await directory.contacts(source, '', 20, credentialsForClient(client))).items;
       answer = await anthropicCopilot.askAnthropic(overview, contactsApercu, question);
       demoMode = false;
     } else {
@@ -737,7 +735,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.listen(PORT, () => {
   console.log(`eTeamsys POC en ecoute sur le port ${PORT}`);
-  console.log(` - HubSpot  : ${HUBSPOT_TOKEN ? 'LIVE' : 'demo (donnees reelles gelees)'}`);
-  console.log(` - Odoo     : ${ODOO_CONFIGURED ? 'LIVE' : 'demo (exemple illustratif, non teste)'}`);
+  console.log(' - HubSpot / Odoo : identifiants propres à chaque profil, démo sans connexion');
   console.log(` - CRM basique : toujours actif (stockage local ${CRM_BASIQUE_FILE})`);
 });
