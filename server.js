@@ -31,6 +31,7 @@ const { createClientStore, sourceForClient } = require('./lib/client-store');
 const { registerAdminRoutes, resolveClientSource, sendError } = require('./lib/client-routes');
 const { createDirectory } = require('./lib/crm-directory');
 const { buildSuggestions, answerQuestion } = require('./lib/demo-copilot');
+const anthropicCopilot = require('./lib/anthropic-copilot');
 const { readImportRows } = require('./lib/crm-import');
 let XLSX;
 try { XLSX = require('xlsx'); } catch (e) { XLSX = null; }
@@ -569,10 +570,19 @@ app.post('/api/copilot/ask', async (req, res) => {
     if (client.credits.solde === 0) {
       return res.status(409).json({ error: 'Crédits épuisés.', credits: client.credits, demoMode: true });
     }
-    const overview = await getOverviewForSource(sourceForClient(client));
-    const answer = answerQuestion(overview, question);
+    const source = sourceForClient(client);
+    const overview = await getOverviewForSource(source);
+    let answer;
+    let demoMode = true;
+    if (anthropicCopilot.isConfigured()) {
+      const contactsApercu = (await directory.contacts(source, '', 20)).items;
+      answer = await anthropicCopilot.askAnthropic(overview, contactsApercu, question);
+      demoMode = false;
+    } else {
+      answer = answerQuestion(overview, question);
+    }
     const updated = clientStore.charge(clientId, 'question');
-    res.json({ answer, credits: updated.credits, demoMode: true });
+    res.json({ answer, credits: updated.credits, demoMode });
   } catch (err) {
     console.error(err);
     sendError(res, err);

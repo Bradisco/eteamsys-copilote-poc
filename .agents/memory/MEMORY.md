@@ -1,4 +1,4 @@
 - [Profils clients du POC](poc-client-profiles.md) — profils de démonstration distincts pour réglages et crédits, mais données CRM partagées; aucune isolation client.
 - [Encodage des imports CSV](csv-import-encoding.md) — un CSV français UTF-8 sans BOM peut perdre ses accents s'il est envoyé comme buffer à XLSX.
 - [Vérification de Preview](preview-entry.md) — une capture de la racine ne prouve pas ce que voit l'utilisateur dans son onglet Preview.
-- [Ancien copilote IA](copilot-source-provenance.md) — le cadrage évoque du code Anthropic ancien, mais ne pas présumer qu'il est disponible dans l'historique du dépôt.
+- [Provenance du copilote Anthropic](copilot-source-provenance.md) — l'intégration actuelle vient d'un prompt fourni ultérieurement, pas d'une restauration de l'ancien code.

@@ -14,9 +14,11 @@ Le backoffice `/admin` crée des profils de démonstration, puis le bouton
    prospects qui partent d'un fichier Excel ou d'un outil fait maison
    plutôt que de tenter d'absorber la complexité de leur système.
 
-Aucune IA générative ni paiement : les suggestions et réponses du copilote
-proviennent uniquement des indicateurs CRM chargés. Un crédit fictif est
-débité par question, et la recharge est une simulation.
+Sans clé Anthropic, le copilote répond par règles à partir des indicateurs CRM.
+Avec `ANTHROPIC_API_KEY` configurée en Secret, il utilise Anthropic pour répondre
+à partir des indicateurs et d'un aperçu de 20 contacts du profil actif.
+Les suggestions restent calculées localement. Un crédit fictif est débité
+par réponse réussie; la recharge est une simulation, sans paiement.
 
 > **Outil interne — non protégé, ne pas exposer publiquement tel quel.**
 > Les profils ne sont pas des comptes utilisateurs isolés. Ne pas importer
@@ -142,8 +144,12 @@ de remplacer silencieusement le résultat par un exemple fictif.
 Chaque entrée peut être réglée sur `actif`, `demo` ou `non-applicable`.
 `non-applicable` désactive l'entrée. `actif` ne construit pas pour autant
 un module encore en aperçu. Le badge du CRM (LIVE/DÉMO) et le statut du
-module sont distincts. Le copilote reste **une simulation eTeamsys**
-même quand la source CRM est LIVE. « Créer » et « Réunions » sont désactivés.
+module sont distincts. Le copilote utilise Anthropic seulement si
+`ANTHROPIC_API_KEY` est configurée; sinon ses réponses restent simulées,
+même quand la source CRM est LIVE. `ANTHROPIC_MODEL` permet de choisir un
+autre modèle (facultatif). Le `demoMode` de la réponse du copilote décrit
+le mode de réponse de l'assistant, pas la provenance LIVE/DÉMO des données CRM.
+« Créer » et « Réunions » sont désactivés.
 
 ## Ce que ce POC démontre
 
