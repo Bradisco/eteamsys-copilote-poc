@@ -180,7 +180,16 @@ function render(data){
   const lcColors = ['var(--cat-1)','var(--cat-2)','var(--cat-3)','var(--cat-4)','var(--seq-650)','var(--seq-550)','var(--seq-450)','var(--seq-350)'];
   const feedTones = { warning: 'warning', serious: 'serious', good: 'good' };
 
+  const sector = data.sectorTemplate;
+  const sectorHtml = sector ? `<section class="card sector-context">
+    <h2>${esc(activeClient.secteur)}</h2>
+    <p><strong>Objectif :</strong> ${esc(sector.objectif)}</p>
+    <p><strong>Besoin :</strong> ${esc(sector.besoin)}</p>
+    <div class="sector-key-modules">${sector.modulesCles.map(label => `<span>${esc(label)}</span>`).join('')}</div>
+    <small>Priorités métier indicatives. Attribution, scoring et conformité ne sont pas des indicateurs mesurés ici.</small>
+  </section>` : '';
   document.getElementById('mainContent').innerHTML = `
+    ${sectorHtml}
     <div class="briefing">
       <div class="briefing-label"><span>Briefing du jour — généré à partir des données</span><span>${esc(data.sourceLabel||'')}</span></div>
       <p>${bold(data.briefing)}</p>
@@ -251,7 +260,7 @@ function render(data){
   `;
 
   document.getElementById('footerNote').textContent =
-    "POC exploratoire eTeamsys. Un badge DÉMO indique des exemples ou un module en aperçu ; le copilote est toujours simulé.";
+    "POC interne eTeamsys. Un badge de provenance DÉMO indique des exemples ; le copilote utilise Anthropic uniquement si la clé est configurée.";
 
   wireFunnelInteractions();
 }
@@ -378,6 +387,9 @@ document.getElementById('themeToggle').addEventListener('click', () => {
 
 </script>
 <script src="/copilot-ui.js" defer></script>
+<script src="/transaction-view.js" defer></script>
+<script src="/reminders-view.js" defer></script>
+<script src="/landing-pages-view.js" defer></script>
 <script src="/app.js" defer></script>
 </body>
 </html>

@@ -6,13 +6,10 @@ const MODULES = [
   ['tableauxDeBord', 'Tableaux de bord'],
 ];
 const MODULE_DESCRIPTIONS = {
-  transactions: 'Le suivi détaillé des transactions sera ajouté dans une prochaine phase. Le funnel actuel reste accessible dans Tableaux de bord.',
-  emailsMarketing: 'Le suivi des relances par e-mail est prévu ultérieurement. Aucun envoi d’e-mail n’est effectué.',
   seo: 'Le connecteur SEO n’est pas configuré dans ce prototype.',
   reseauxSociaux: 'Automatisations et campagnes gérées par eTeamsys : à venir.',
   publicites: 'Le connecteur publicitaire sera ajouté dans une prochaine phase.',
   formulaires: 'Le suivi des formulaires sera ajouté dans une prochaine phase.',
-  pagesDestination: 'Les pages créées par eTeamsys seront présentées ici en lecture seule dans une prochaine phase.',
   pagesSiteWeb: 'Les données des pages de site web seront ajoutées dans une prochaine phase.',
 };
 const clientId = new URLSearchParams(location.search).get('clientId');
@@ -141,7 +138,6 @@ async function load(forceOverview = false) {
       .then((overview) => {
         if (version !== requestVersion) return;
         currentOverview = overview;
-        setHeader(overview);
         renderCopilot(activeClient, overview);
       })
       .catch((error) => {
@@ -151,6 +147,27 @@ async function load(forceOverview = false) {
     if (activeView === 'contacts' || activeView === 'entreprises') {
       try { await loadDirectory(activeView, version); }
       catch (error) { if (version === requestVersion) showMessage('Impossible de charger cette liste', error.message); }
+    } else if (['transactions', 'emailsMarketing', 'pagesDestination'].includes(activeView)) {
+      const key = activeView;
+      const route = {
+        transactions: '/api/transactions',
+        emailsMarketing: '/api/email-reminders',
+        pagesDestination: '/api/landing-pages',
+      }[key];
+      try {
+        const data = await getJson(`${route}?clientId=${encodeURIComponent(clientId)}`);
+        if (version !== requestVersion) return;
+        setHeader(data);
+        if (key === 'transactions') {
+          TransactionView.render(data, activeClient, () => { currentOverview = null; load(true); });
+        } else if (key === 'emailsMarketing') {
+          RemindersView.render(data);
+        } else {
+          LandingPagesView.render(data);
+        }
+      } catch (error) {
+        if (version === requestVersion) showMessage('Impossible de charger ce module', error.message);
+      }
     } else {
       setHeader({ demoMode: true });
       renderPreview();

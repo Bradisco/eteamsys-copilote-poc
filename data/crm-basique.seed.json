@@ -9,9 +9,10 @@
   ],
   "opportunities": [
     { "id": "o1", "contactId": "c1", "titre": "Remplacement châssis - maison témoin", "montant": 8200, "etape": "gagne", "dateMaj": "2026-06-10" },
-    { "id": "o2", "contactId": "c2", "titre": "Aménagement bureaux", "montant": 4200, "etape": "proposition", "dateMaj": "2026-09-01" },
-    { "id": "o3", "contactId": "c3", "titre": "Devis véranda", "montant": 12500, "etape": "nouveau", "dateMaj": "2026-09-15" },
-    { "id": "o4", "contactId": "c4", "titre": "Extension atelier", "montant": 21000, "etape": "qualifie", "dateMaj": "2026-05-02" },
-    { "id": "o5", "contactId": "c5", "titre": "Rénovation façade", "montant": 6300, "etape": "perdu", "dateMaj": "2026-04-11" }
+    { "id": "o2", "contactId": "c2", "titre": "Aménagement bureaux", "montant": 4200, "etape": "offre-envoyee", "dateMaj": "2026-09-01" },
+    { "id": "o3", "contactId": "c3", "titre": "Devis véranda", "montant": 12500, "etape": "initiation", "dateMaj": "2026-09-15" },
+    { "id": "o4", "contactId": "c4", "titre": "Extension atelier", "montant": 21000, "etape": "initiation", "dateMaj": "2026-05-02" },
+    { "id": "o5", "contactId": "c5", "titre": "Rénovation façade", "montant": 6300, "etape": "perdu", "dateMaj": "2026-04-11" },
+    { "id": "o6", "contactId": "c2", "titre": "Projet de vitrine commerciale (exemple)", "montant": 7600, "etape": "negociation", "dateMaj": "2026-09-20" }
   ]
 }

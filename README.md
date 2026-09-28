@@ -34,7 +34,8 @@ par réponse réussie; la recharge est une simulation, sans paiement.
    statut, le consultant, les onze modules et le solde sont modifiables.
 3. Cliquer sur « Voir en tant que ce client » pour ouvrir la vue principale.
    Sans profil sélectionné, celle-ci invite à revenir sur `/admin`.
-4. Ouvrir Contacts, Entreprises et Tableaux de bord. Les autres entrées
+4. Ouvrir Contacts, Entreprises, Transactions, E-mails marketing,
+   Pages de destination et Tableaux de bord. Les autres entrées
    sont des aperçus ou désactivées selon les réglages du profil.
 
 Les profils et crédits sont stockés dans `data/clients.json`, créé à la
@@ -111,6 +112,36 @@ dans la segmentation client). Depuis la page, on peut :
 Le stockage JSON local est adapté à un POC, pas à de la production
 (pas de gestion multi-clients, pas de base de données réelle) — à
 remplacer par une vraie base avant d'aller plus loin.
+
+### Modules de la phase 2
+
+- **Transactions** : les opportunités du CRM basique alimentent les cinq
+  stades Initiation, Offre envoyée, Négociation, Won et Lost. Le fichier
+  actif est migré sans remplacement par le seed, avec une sauvegarde
+  locale `data/*.backup-*.json` avant modification. Seul un profil
+  CRM basique dont le module Transactions est `actif` peut créer une
+  transaction ou modifier son stade ; un profil en `demo` consulte
+  le funnel sans pouvoir écrire. Les profils HubSpot et Odoo voient
+  leur funnel existant en lecture seule, sans montant par stade inventé.
+- **E-mails marketing** : liste des contacts CRM basique à relancer
+  selon la même règle de sept jours que le tableau de bord, sans envoi
+  ni suivi d'e-mails. HubSpot et Odoo affichent uniquement leurs
+  compteurs existants : ni noms, ni adresses, ni dates individuelles
+  ne sont déduits des totaux.
+- **Pages de destination** : exemples partagés pour le CRM basique et
+  exemples distincts pour HubSpot/Odoo, toujours en lecture seule.
+  Le badge de provenance des données reste **DÉMO**, même si le statut
+  du module est `actif`. Aucun site réel n'est connecté.
+- **Tableaux de bord** : objectif, besoin et modules clés du secteur
+  choisi apparaissent au-dessus du briefing narratif existant. Ces
+  priorités ne signifient pas que l'attribution, le scoring ou la
+  conformité sont mesurés par ce prototype.
+
+Les données du CRM basique sont **communes à tous les profils** utilisant
+ce CRM. Les réglages `actif`, `demo` et `non-applicable` sont distincts de
+la provenance DÉMO/LIVE des données. Ces vérifications de profil ne sont
+pas une authentification : ne pas publier ce POC avec de vraies données
+clients sans contrôle d'accès et séparation des données.
 
 ### Profils, navigation et crédits
 

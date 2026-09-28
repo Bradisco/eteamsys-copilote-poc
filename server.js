@@ -26,9 +26,14 @@
 
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
+const { randomUUID } = require('node:crypto');
 const { createClientStore, sourceForClient } = require('./lib/client-store');
 const { registerAdminRoutes, resolveClientSource, sendError } = require('./lib/client-routes');
+const { STAGES, summarizeOpportunities } = require('./lib/crm-transactions');
+const { createCrmBasiqueStore } = require('./lib/crm-basique-store');
+const { buildBasicReminders } = require('./lib/email-reminders');
+const { landingPagesForSource, BASIC_EXAMPLE_PAGES } = require('./lib/landing-pages');
+const { templateForSector } = require('./lib/sector-templates');
 const { createDirectory } = require('./lib/crm-directory');
 const { buildSuggestions, answerQuestion } = require('./lib/demo-copilot');
 const anthropicCopilot = require('./lib/anthropic-copilot');
@@ -51,6 +56,7 @@ const ODOO_CONFIGURED = !!(ODOO_URL && ODOO_DB && ODOO_USERNAME && ODOO_PASSWORD
 
 const CRM_BASIQUE_FILE = path.join(__dirname, 'data', 'crm-basique.json');
 const CRM_BASIQUE_SEED_FILE = path.join(__dirname, 'data', 'crm-basique.seed.json');
+const crmStore = createCrmBasiqueStore(CRM_BASIQUE_FILE, CRM_BASIQUE_SEED_FILE);
 const clientStore = createClientStore(path.join(__dirname, 'data', 'clients.json'));
 registerAdminRoutes(app, clientStore);
 
@@ -347,23 +353,13 @@ async function getOdooOverview() {
 // 3) SOURCE CRM BASIQUE PROPRIÉTAIRE — vrai mini-CRM (stockage local + import)
 // =============================================================================
 function loadCrmBasique() {
-  try {
-    if (!fs.existsSync(CRM_BASIQUE_FILE)) {
-      const seed = fs.readFileSync(CRM_BASIQUE_SEED_FILE, 'utf8');
-      fs.writeFileSync(CRM_BASIQUE_FILE, seed);
-    }
-    return JSON.parse(fs.readFileSync(CRM_BASIQUE_FILE, 'utf8'));
-  } catch (e) {
-    return { clientLabel: 'CRM basique eTeamsys', contacts: [], opportunities: [] };
-  }
+  return crmStore.load();
 }
 function saveCrmBasique(data) {
-  fs.writeFileSync(CRM_BASIQUE_FILE, JSON.stringify(data, null, 2));
+  crmStore.save(data);
 }
 
 const CB_STATUT_LABELS = { lead: 'Lead', qualifie: 'Qualifié', client: 'Client' };
-const CB_ETAPE_LABELS = { nouveau: 'Nouveau', qualifie: 'Qualifié', proposition: 'Proposition envoyée', gagne: 'Gagné', perdu: 'Perdu' };
-const CB_FUNNEL_ORDER = ['nouveau', 'qualifie', 'proposition', 'gagne'];
 
 function getCrmBasiqueOverview() {
   const db = loadCrmBasique();
@@ -374,9 +370,7 @@ function getCrmBasiqueOverview() {
   for (const c of contacts) lifecycleCounts[c.statut] = (lifecycleCounts[c.statut] || 0) + 1;
   const lifecycle = Object.keys(CB_STATUT_LABELS).map((id) => ({ id, label: CB_STATUT_LABELS[id], count: lifecycleCounts[id] || 0 }));
 
-  const funnelCounts = {};
-  for (const o of opps) funnelCounts[o.etape] = (funnelCounts[o.etape] || 0) + 1;
-  const funnel = CB_FUNNEL_ORDER.map((id) => ({ id, label: CB_ETAPE_LABELS[id], short: CB_ETAPE_LABELS[id], count: funnelCounts[id] || 0 }));
+  const funnel = summarizeOpportunities(opps);
 
   const year = String(new Date().getFullYear());
   const won = opps.filter((o) => o.etape === 'gagne');
@@ -384,7 +378,7 @@ function getCrmBasiqueOverview() {
   const wonAmount = won.reduce((a, o) => a + (parseFloat(o.montant) || 0), 0);
   const lostAmount = lost.reduce((a, o) => a + (parseFloat(o.montant) || 0), 0);
 
-  const notRelanced = contacts.filter((c) => (c.statut === 'lead' || c.statut === 'qualifie') && (!c.derniereRelance || c.derniereRelance < daysAgoISO(7)));
+  const notRelanced = buildBasicReminders(contacts, daysAgoISO(7));
   const staleCutoff = daysAgoISO(60);
   const staleOpen = opps.filter((o) => o.etape !== 'gagne' && o.etape !== 'perdu' && o.dateMaj < staleCutoff);
 
@@ -530,12 +524,148 @@ async function getOverviewForSource(source) {
 
 app.get('/api/overview', async (req, res) => {
   try {
-    const { source } = resolveClientSource(req.query, clientStore);
-    res.json(await getOverviewForSource(source));
+    const { client, source } = resolveClientSource(req.query, clientStore);
+    const overview = await getOverviewForSource(source);
+    if (client) overview.sectorTemplate = templateForSector(client.secteur);
+    res.json(overview);
   } catch (err) {
     console.error(err);
     sendError(res, err);
   }
+});
+
+function moduleProfile(clientId, key) {
+  if (typeof clientId !== 'string' || !clientId) {
+    throw Object.assign(new Error('Profil client obligatoire.'), { status: 400 });
+  }
+  const client = clientStore.get(clientId);
+  if (client.modules[key] === 'non-applicable') {
+    throw Object.assign(new Error('Module indisponible pour ce profil.'), { status: 403 });
+  }
+  return client;
+}
+function editableBasicProfile(clientId) {
+  const client = moduleProfile(clientId, 'transactions');
+  if (sourceForClient(client) !== 'crm-basique' || client.modules.transactions !== 'actif') {
+    throw Object.assign(new Error('Transactions non modifiables pour ce profil.'), { status: 403 });
+  }
+  return client;
+}
+function validateStage(value) {
+  if (!STAGES.some((stage) => stage.id === value)) {
+    throw Object.assign(new Error('Stade de transaction invalide.'), { status: 400 });
+  }
+}
+function checkTransactionFields(body, allowed) {
+  if (!body || typeof body !== 'object' || Array.isArray(body) ||
+      Object.keys(body).some((key) => !allowed.includes(key))) {
+    throw Object.assign(new Error('Champs de transaction invalides.'), { status: 400 });
+  }
+}
+
+app.get('/api/transactions', async (req, res) => {
+  try {
+    const client = moduleProfile(req.query.clientId, 'transactions');
+    const source = sourceForClient(client);
+    if (source === 'crm-basique') {
+      const db = loadCrmBasique();
+      const names = new Map(db.contacts.map((contact) => [contact.id, contact.nom]));
+      return res.json({
+        source, demoMode: true, asOf: todayISO(), currency: 'EUR',
+        note: 'Opportunités partagées du CRM basique. Les données de ce POC sont des exemples.',
+        funnel: summarizeOpportunities(db.opportunities),
+        items: db.opportunities.map((row) => ({ ...row, contactNom: names.get(row.contactId) || null })),
+        contacts: db.contacts.map(({ id, nom }) => ({ id, nom })),
+        canEdit: client.modules.transactions === 'actif',
+      });
+    }
+    const overview = await getOverviewForSource(source);
+    return res.json({
+      source, demoMode: overview.demoMode, asOf: overview.asOf, currency: overview.currency,
+      note: `${overview.note} Transactions externes en lecture seule : montants par stade et liste individuelle indisponibles.`,
+      funnel: overview.funnel.map((stage) => ({ ...stage, hasAmount: false })),
+      items: [], canEdit: false,
+    });
+  } catch (error) { console.error(error); sendError(res, error); }
+});
+
+app.post('/api/crm-basique/transactions', (req, res) => {
+  try {
+    editableBasicProfile(req.body?.clientId);
+    checkTransactionFields(req.body, ['clientId', 'contactId', 'titre', 'montant', 'etape']);
+    const { contactId, titre, montant, etape = 'initiation' } = req.body;
+    if (typeof titre !== 'string' || !titre.trim() || titre.length > 200) {
+      throw Object.assign(new Error('Titre de transaction obligatoire (200 caractères maximum).'), { status: 400 });
+    }
+    validateStage(etape);
+    if (montant !== undefined && (typeof montant !== 'number' || !Number.isFinite(montant) || montant < 0)) {
+      throw Object.assign(new Error('Montant numérique positif ou nul requis.'), { status: 400 });
+    }
+    const db = loadCrmBasique();
+    if (!db.contacts.some((contact) => contact.id === contactId)) {
+      throw Object.assign(new Error('Contact inconnu.'), { status: 404 });
+    }
+    const now = new Date().toISOString();
+    const row = { id: randomUUID(), contactId, titre: titre.trim(), montant: montant ?? null, etape, creeLe: now, dateMaj: now };
+    db.opportunities.push(row);
+    saveCrmBasique(db);
+    res.status(201).json(row);
+  } catch (error) { console.error(error); sendError(res, error); }
+});
+
+app.patch('/api/crm-basique/transactions/:id', (req, res) => {
+  try {
+    editableBasicProfile(req.body?.clientId);
+    checkTransactionFields(req.body, ['clientId', 'etape']);
+    validateStage(req.body.etape);
+    const db = loadCrmBasique();
+    const row = db.opportunities.find((entry) => entry.id === req.params.id);
+    if (!row) throw Object.assign(new Error('Transaction introuvable.'), { status: 404 });
+    if (!db.contacts.some((contact) => contact.id === row.contactId)) {
+      throw Object.assign(new Error('Contact de la transaction introuvable.'), { status: 404 });
+    }
+    row.etape = req.body.etape;
+    row.dateMaj = new Date().toISOString();
+    saveCrmBasique(db);
+    res.json(row);
+  } catch (error) { console.error(error); sendError(res, error); }
+});
+
+app.get('/api/email-reminders', async (req, res) => {
+  try {
+    const client = moduleProfile(req.query.clientId, 'emailsMarketing');
+    const source = sourceForClient(client);
+    if (source === 'crm-basique') {
+      const items = buildBasicReminders(loadCrmBasique().contacts, daysAgoISO(7));
+      return res.json({
+        source, demoMode: true, asOf: todayISO(), items, counters: [],
+        note: 'Dernier contact connu : dernière relance enregistrée. Aucun historique complet des échanges ni envoi d’e-mail.',
+      });
+    }
+    const overview = await getOverviewForSource(source);
+    return res.json({
+      source, demoMode: overview.demoMode, asOf: overview.asOf, items: [],
+      counters: overview.relanceItems,
+      note: `Compteurs de ${source === 'hubspot' ? 'HubSpot' : 'Odoo'} (${overview.asOf}). Liste nominative, e-mails et dates individuelles indisponibles.`,
+    });
+  } catch (error) { console.error(error); sendError(res, error); }
+});
+
+app.get('/api/landing-pages', (req, res) => {
+  try {
+    const client = moduleProfile(req.query.clientId, 'pagesDestination');
+    const source = sourceForClient(client);
+    let db;
+    if (source === 'crm-basique') {
+      db = loadCrmBasique();
+      if (!Object.hasOwn(db, 'landingPages')) {
+        crmStore.backup();
+        db = { ...db, landingPages: BASIC_EXAMPLE_PAGES };
+        saveCrmBasique(db);
+      }
+    }
+    res.json({ source, ...landingPagesForSource(source, db) });
+  } catch (error) { console.error(error); sendError(res, error); }
 });
 
 for (const [route, method] of [['/api/contacts', 'contacts'], ['/api/companies', 'companies']]) {
