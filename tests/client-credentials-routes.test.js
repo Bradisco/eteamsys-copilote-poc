@@ -38,7 +38,10 @@ test('deux profils HubSpot utilisent uniquement leurs propres identifiants', asy
 
 test('sans identifiants ni client reconnu, aucune connexion LIVE n’est réutilisée', async (t) => {
   const { base, hubspot } = await startServer(t, { mockHubspot: true });
-  assert.equal((await (await fetch(`${base}/api/overview?clientId=${hubspot.id}`)).json()).demoMode, true);
+  const demo = await (await fetch(`${base}/api/overview?clientId=${hubspot.id}`)).json();
+  assert.equal(demo.demoMode, true);
+  assert.equal(demo.sourceLabel, 'HubSpot — instantané de référence (mode démo)');
+  assert.match(demo.note, /eTeamsys/);
   assert.equal((await (await fetch(`${base}/api/contacts?source=hubspot`)).json()).demoMode, true);
   assert.equal((await fetch(`${base}/api/overview?clientId=absent`)).status, 404);
 });

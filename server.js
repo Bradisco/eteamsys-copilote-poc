@@ -27,7 +27,7 @@
 const express = require('express');
 const path = require('path');
 const { randomUUID } = require('node:crypto');
-const { createClientStore, sourceForClient, credentialsForClient } = require('./lib/client-store');
+const { createClientStore, sourceForClient, isEteamsysName, credentialsForClient } = require('./lib/client-store');
 const { registerAdminRoutes, resolveClientSource, sendError } = require('./lib/client-routes');
 const { STAGES, summarizeOpportunities } = require('./lib/crm-transactions');
 const { createCrmBasiqueStore } = require('./lib/crm-basique-store');
@@ -168,11 +168,11 @@ async function getHubspotOverview(credentials = {}, client = null) {
     const d = HS_DEMO_SNAPSHOT;
     return {
       source: 'hubspot',
-      sourceLabel: 'HubSpot — instantané eTeamsys (mode démo)',
+      sourceLabel: 'HubSpot — instantané de référence (mode démo)',
       demoMode: true,
       asOf: d.asOf,
       currency: 'EUR',
-      note: client?.nom === 'eTeamsys'
+      note: isEteamsysName(client?.nom)
         ? 'Instantané du compte eTeamsys relevé le 18/09/2026. Configurez les identifiants de ce profil pour passer en direct.'
         : 'Instantané de référence du compte eTeamsys relevé le 18/09/2026 : ce ne sont pas les données du profil sélectionné.',
       lifecycle: d.lifecycle,

@@ -123,10 +123,26 @@ test('migration ambiguë ne modifie aucun profil', (t) => {
   const file = path.join(dir, 'clients.json');
   const store = createClientStore(file);
   store.create({ nom: 'eTeamsys', crmExistant: 'hubspot' });
-  store.create({ nom: 'eTeamsys', crmExistant: 'hubspot' });
+  store.create({ nom: '  ETEAMSYS  ', crmExistant: 'hubspot' });
   const before = fs.readFileSync(file, 'utf8');
   assert.throws(() => store.migrateEteamsysHubspotCredential('fake'), { status: 500 });
   assert.equal(fs.readFileSync(file, 'utf8'), before);
+});
+
+test('migration reconnaît une ancienne variante de casse et d’espaces du nom eTeamsys', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eteamsys-name-variant-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'clients.json');
+  const store = createClientStore(file);
+  const target = store.create({ nom: 'eTeamsys', crmExistant: 'hubspot' });
+  const other = store.create({ nom: 'Autre HubSpot', crmExistant: 'hubspot' });
+  const clients = JSON.parse(fs.readFileSync(file, 'utf8'));
+  clients.find((client) => client.id === target.id).nom = '  ETEAMSYS  ';
+  fs.writeFileSync(file, JSON.stringify(clients), { mode: 0o600 });
+  assert.equal(store.migrateEteamsysHubspotCredential('fake-variant'), true);
+  assert.equal(store.get(target.id).credentials.hubspotToken, 'fake-variant');
+  assert.equal(store.get(other.id).credentials.hubspotToken, undefined);
+  assert.equal(store.migrateEteamsysHubspotCredential('fake-variant'), false);
 });
 
 test('échec de sauvegarde : aucun jeton n’est écrit dans les profils', (t) => {

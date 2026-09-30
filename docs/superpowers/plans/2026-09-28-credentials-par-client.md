@@ -102,6 +102,7 @@ async function getOverviewForSource(source, client = null) {
 ```
 
 La seule lecture temporaire autorisée de `process.env.HUBSPOT_TOKEN` sera dans la migration du Task 4. Ne jamais utiliser une variable d'environnement comme repli dans les connecteurs. Adapter les messages de démarrage : ils ne doivent plus prétendre qu'un CRM entier est LIVE.
+En démo HubSpot, `sourceLabel` reste neutre pour tous les profils ; la note précise la provenance de l'instantané eTeamsys.
 
 - [ ] **Step 3: Propager `client` dans chaque route qui lit un CRM externe.**
 
@@ -159,7 +160,7 @@ Ne pas préremplir URL Odoo ni utilisateur. Réinitialiser les champs lors de ch
 // JSON corrompu ou sauvegarde impossible : fichier actif inchangé.
 ```
 
-- [ ] **Step 2: Implémenter une sauvegarde exclusive avant migration et une écriture atomique.** Réutiliser le store, préserver tous les profils/champs/crédits, ne jamais écraser une sauvegarde existante ; enregistrer le marqueur dans le seul profil ciblé. Au démarrage, appeler la migration avec `process.env.HUBSPOT_TOKEN` uniquement à cet endroit. Journaliser succès/absence/ambiguïté sans jeton ni données CRM. La suppression du Secret Replit attend la vérification et reste à la main de l'utilisateur.
+- [ ] **Step 2: Implémenter une sauvegarde exclusive avant migration et une écriture atomique.** Comparer les noms avec `trim().toLowerCase() === 'eteamsys'`, y compris pour détecter plusieurs correspondances ambiguës. Réutiliser le store, préserver tous les profils/champs/crédits, ne jamais écraser une sauvegarde existante ; enregistrer le marqueur dans le seul profil ciblé. Au démarrage, appeler la migration avec `process.env.HUBSPOT_TOKEN` uniquement à cet endroit. Journaliser succès/absence/ambiguïté sans jeton ni données CRM. La suppression du Secret Replit attend la vérification et reste à la main de l'utilisateur.
 
 - [ ] **Step 3: Supprimer les variables CRM globales de `.env.example`, mettre à jour le README (admin, isolation, stockage local en clair, risque d'accès public), et conserver `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` globaux. Mentionner explicitement le `429` HubSpot comme incident distinct non corrigé.**
 
