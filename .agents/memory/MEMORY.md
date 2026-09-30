@@ -2,3 +2,4 @@
 - [Vérification de Preview](preview-entry.md) — une capture de la racine ne prouve pas ce que voit l'utilisateur dans son onglet Preview.
 - [Provenance du copilote Anthropic](copilot-source-provenance.md) — l'intégration actuelle vient d'un prompt fourni ultérieurement, pas d'une restauration de l'ancien code.
 - [Outillage Python temporaire](python-toolchain-side-effect.md) — invoquer Python pour un contrôle ponctuel peut ajouter un module de langage au projet ; vérifier et retirer cet ajout.
+- [Authentification Git locale](git-auth-local.md) — pousser via un helper propre au dépôt, sans jeton dans l’URL ni dépendance à la connexion GitHub partagée.
